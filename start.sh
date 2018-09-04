@@ -203,6 +203,126 @@ function create_workers(){
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+# 						K8 Install 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+
+
+# write_k8s_header create the file in ${2} and writes the k8s configuration.
+# Sets up the k8s temporary directory inside the VM with ${1}.
+function write_k8s_header(){
+    k8s_dir="${1}"
+    filename="${2}"
+    cat <<EOF > "${filename}"
+#!/usr/bin/env bash
+
+set -e
+
+# K8s installation
+sudo apt-get -y install curl
+mkdir -p "${k8s_dir}"
+cd "${k8s_dir}"
+
+EOF
+}
+
+# write_k8s_install writes the k8s installation first half in ${2} and the
+# second half in ${3}. Changes the k8s temporary directory inside the VM,
+# defined in ${1}, owner and group to vagrant.
+function write_k8s_install() {
+    k8s_dir="${1}"
+    filename="${2}"
+    filename_2nd_half="${3}"
+    if [[ -n "${IPV6_EXT}" ]]; then
+        # The k8s cluster cidr will be /80
+        # it can be any value as long it's lower than /96
+        # k8s will assign each node a cidr for example:
+        #   master  : FD02::0:0:0/96
+        #   worker 1: FD02::1:0:0/96
+        #   worker 1: FD02::2:0:0/96
+        k8s_cluster_cidr+="FD02::/80"
+        k8s_node_cidr_mask_size="96"
+        k8s_service_cluster_ip_range="FD03::/112"
+        k8s_cluster_api_server_ip="FD03::1"
+        k8s_cluster_dns_ip="FD03::A"
+    fi
+    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.0.0.0/10"}
+    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"16"}
+    k8s_service_cluster_ip_range=${k8s_service_cluster_ip_range:-"172.20.0.0/24"}
+    k8s_cluster_api_server_ip=${k8s_cluster_api_server_ip:-"172.20.0.1"}
+    k8s_cluster_dns_ip=${k8s_cluster_dns_ip:-"172.20.0.10"}
+
+    cat <<EOF >> "${filename}"
+# K8s
+k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
+export IPV6_EXT="${IPV6_EXT}"
+export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
+export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
+export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
+export K8S_CLUSTER_API_SERVER_IP="${k8s_cluster_api_server_ip}"
+export K8S_CLUSTER_DNS_IP="${k8s_cluster_dns_ip}"
+export RUNTIME="${RUNTIME}"
+# Only do installation if RELOAD is not set
+if [ -z "${RELOAD}" ]; then
+    export INSTALL="1"
+fi
+export ETCD_CLEAN="${ETCD_CLEAN}"
+
+EOF
+    cat <<EOF >> "${filename}"
+if [[ "\$(hostname)" == "${VM_BASENAME}1" ]]; then
+    echo "\$(hostname)"
+    "\${k8s_path}/00-create-certs.sh"
+    "\${k8s_path}/01-install-etcd.sh"
+    "\${k8s_path}/02-install-kubernetes-master.sh"
+fi
+# All nodes are a kubernetes worker
+"\${k8s_path}/03-install-kubernetes-worker.sh"
+"\${k8s_path}/04-install-kubectl.sh"
+chown vagrant.vagrant -R "${k8s_dir}"
+
+EOF
+
+    cat <<EOF > "${filename_2nd_half}"
+#!/usr/bin/env bash
+# K8s installation 2nd half
+k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
+export IPV6_EXT="${IPV6_EXT}"
+export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
+export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
+export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
+export K8S_CLUSTER_API_SERVER_IP="${k8s_cluster_api_server_ip}"
+export K8S_CLUSTER_DNS_IP="${k8s_cluster_dns_ip}"
+export RUNTIME="${RUNTIME}"
+export K8STAG="${VM_BASENAME}"
+export NWORKERS="${NWORKERS}"
+# Only do installation if RELOAD is not set
+if [ -z "${RELOAD}" ]; then
+    export INSTALL="1"
+fi
+export ETCD_CLEAN="${ETCD_CLEAN}"
+
+cd "${k8s_dir}"
+
+if [[ "\$(hostname)" == "${VM_BASENAME}1" ]]; then
+    "\${k8s_path}/06-install-kubedns.sh"
+else
+    "\${k8s_path}/04-install-kubectl.sh"
+fi
+EOF
+}
+
+# create_k8s_config creates k8s config
+function create_k8s_config(){
+    if [ -n "${K8S}" ]; then
+        k8s_temp_dir="/home/vagrant/k8s"
+        output_file="${dir}/k8s-install-1st-part.sh"
+        output_2nd_file="${dir}/k8s-install-2nd-part.sh"
+        write_k8s_header "${k8s_temp_dir}" "${output_file}"
+        write_k8s_install "${k8s_temp_dir}" "${output_file}" "${output_2nd_file}"
+    fi
+}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 						Vagrant & Virtualbox Functions 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 
@@ -389,7 +509,7 @@ set_reload_if_vm_exists
 create_master
 create_workers
 set_vagrant_env
-# create_k8s_config							// TODO
+create_k8s_config							
 
 # cd "${dir}/../.."
 
@@ -403,8 +523,7 @@ else
     vagrant up
     if [ -n "${K8S}" ]; then
     	echo "copying k8 config file to vagrant.kubeconfig"
-    	# TODO
-		# vagrant ssh k8s1 -- cat /home/vagrant/.kube/config | sed 's;server:.*:6443;server: https://k8s1:7443;g' > vagrant.kubeconfig		
+		vagrant ssh k8s1 -- cat /home/vagrant/.kube/config | sed 's;server:.*:6443;server: https://k8s1:7443;g' > vagrant.kubeconfig		
 	fi
 	echo "Add '127.0.0.1 k8s1' to your /etc/hosts to use vagrant.kubeconfig file for kubectl"
 fi

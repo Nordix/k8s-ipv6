@@ -88,7 +88,7 @@ Vagrant.configure(2) do |config|
            # the first part of the script. The 2nd part will install the
            # policies into kubernetes and cilium.
            # if ENV["K8S"] then
-           #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/cilium-k8s-install-2nd-part.sh"
+           #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
            #     cm.vm.provision "k8s-install-master-part-2",
            #         type: "shell",
            #         run: "always",
@@ -126,7 +126,7 @@ Vagrant.configure(2) do |config|
             node.vm.hostname = "#{$vm_base_name}#{n+2}"
             if ENV['EARVWAN_TEMP'] then
                 if ENV["K8S"] then
-                    k8sinstall = "#{ENV['EARVWAN_TEMP']}/cilium-k8s-install-1st-part.sh"
+                    k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-1st-part.sh"
                     node.vm.provision "k8s-install-node-part-1",
                         type: "shell",
                         run: "always",
@@ -137,7 +137,7 @@ Vagrant.configure(2) do |config|
                 script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
                 node.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
                 # if ENV["K8S"] then
-                #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/cilium-k8s-install-2nd-part.sh"
+                #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
                 #     node.vm.provision "k8s-install-node-part-2",
                 #         type: "shell",
                 #         run: "always",

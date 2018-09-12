@@ -82,6 +82,12 @@ function get_cilium_node_addr(){
 }
 
 
+function get_cilium_node_gw_addr(){
+    split_ipv4 ipv4_array "${2}"
+    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array[0]}" "${ipv4_array[1]}" "${ipv4_array[2]}" "${ipv4_array[3]}")
+    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 				Network Configs (written in node-1.sh, ...)
@@ -159,12 +165,60 @@ EOF
 }
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+# 							CNI Conf
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+function write_cni_bridge_cfg(){
+    node_index="${1}"
+    master_ipv4_suffix="${2}"
+    ipv6_addr="${3}"
+    ipv6_gw_addr="${4}"
+    filename="${5}"
+
+cat <<EOF >> "$filename"
+cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
+{
+    "cniVersion": "0.3.0",
+    "name": "my-bridge",
+    "type": "bridge",
+    "bridge": "cni0",
+    "isDefaultGateway": true,
+    "ipMasq": true,
+    "ipam": {
+        "type": "host-local",
+        "subnet": "${ipv6_addr}/96"
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+}
+
+function write_cni_lo_cfg(){
+cat <<EOF >> "$filename"
+cat <<EOF >> "/etc/cni/net.d/99-loopback.conf"
+{
+	"cniVersion": "0.3.0",
+	"name": "lo",
+	"type": "loopback"
+}
+EOF
+cat <<EOF >> "${filename}"
+
+EOF
+
+}
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 #			Create Master & Node Config files (node-1.sh, ...) 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 
 function create_master(){
     split_ipv4 ipv4_array "${MASTER_IPV4}"
     get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+    get_cilium_node_gw_addr ipv6_gw_addr "${MASTER_IPV4}"
     output_file="${dir}/node-1.sh"
     write_netcfg_header "${MASTER_IPV6}" "${MASTER_IPV6}" "${output_file}"
 
@@ -173,12 +227,15 @@ function create_master(){
     fi
 
     # write_cilium_cfg 1 "${ipv4_array[3]}" "${master_cilium_ipv6}" "${output_file}"
+    write_cni_bridge_cfg 1 "${ipv4_array[3]}" "${master_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+	# write_cni_lo_cfg 1 "${ipv4_array[3]}" "${master_cilium_ipv6}" "${output_file}"    
 }
 
 function create_workers(){
     split_ipv4 ipv4_array "${MASTER_IPV4}"
     master_prefix_ip="${ipv4_array[3]}"
     get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+  
     base_workers_ip=$(printf "%d.%d.%d." "${ipv4_array[0]}" "${ipv4_array[1]}" "${ipv4_array[2]}")
     if [ -n "${NWORKERS}" ]; then
         for i in `seq 2 $(( NWORKERS + 1 ))`; do
@@ -196,7 +253,11 @@ function create_workers(){
 
             worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
             get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
+            get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
+            
             # write_cilium_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
+			write_cni_bridge_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+			# write_cni_lo_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
         done
     fi
 }
@@ -346,6 +407,7 @@ function set_vagrant_env(){
 
     temp=$(printf " %s" "${ipv6_public_workers_addrs[@]}")
     export 'IPV6_PUBLIC_WORKERS_ADDRS'="${temp:1}"
+    echo "IPV6_PUBLIC_WORKERS_ADDRS: ${IPV6_PUBLIC_WORKERS_ADDRS}"
     if [[ "${IPV4}" -ne "1" ]]; then
         export 'IPV6_EXT'=1
     fi

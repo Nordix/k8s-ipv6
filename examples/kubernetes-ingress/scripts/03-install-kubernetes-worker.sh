@@ -48,12 +48,12 @@ if [ -n "${INSTALL}" ]; then
         cp "${k8s_cache_dir}/${component}" .
     done
 
-    download_to "${cache_dir}/cni" "cni-plugins-amd64-v0.6.0.tgz" \
-        "https://github.com/containernetworking/plugins/releases/download/v0.6.0/cni-plugins-amd64-v0.6.0.tgz"
+    download_to "${cache_dir}/cni" "cni-plugins-amd64-v0.7.1.tgz" \
+        "https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz"
 
-    cp "${cache_dir}/cni/cni-plugins-amd64-v0.6.0.tgz" .
+    cp "${cache_dir}/cni/cni-plugins-amd64-v0.7.1.tgz" .
 
-    sudo tar -xvf cni-plugins-amd64-v0.6.0.tgz -C /opt/cni/bin
+    sudo tar -xvf cni-plugins-amd64-v0.7.1.tgz -C /opt/cni/bin
 
     chmod +x kubelet kubectl kube-proxy
 

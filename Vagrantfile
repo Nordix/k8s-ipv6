@@ -62,9 +62,11 @@ Vagrant.configure(2) do |config|
             end
             cm.vm.network "private_network", ip: "#{$nfs_ipv4_master_addr}", bridge: "enp0s9"
             # Add IPv6 address this way or we get hit by a virtualbox bug
+			puts "Running ipv6-config with master_ipv6 #{$master_ipv6}/16 on enp0s9"
             cm.vm.provision "ipv6-config",
                 type: "shell",
                 run: "always",
+                privileged: true,
                 inline: "ip -6 a a #{$master_ipv6}/16 dev enp0s9"
             node_ip = "#{$nfs_ipv4_master_addr}"
             if ENV["IPV6_EXT"] then
@@ -78,24 +80,22 @@ Vagrant.configure(2) do |config|
                cm.vm.provision "k8s-install-master-part-1",
                    type: "shell",
                    run: "always",
-                   env: {"node_ip" => node_ip},
+                   env: {"node_ip" => node_ip}, # EARVWAN: used as kubelet option: --node-ip=${node_ip}
                    privileged: true,
                    path: k8sinstall
            end
            script = "#{ENV['EARVWAN_TEMP']}/node-1.sh"
            cm.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
-           # In k8s mode cilium needs etcd in order to run which was started in
-           # the first part of the script. The 2nd part will install the
-           # policies into kubernetes and cilium.
-           # if ENV["K8S"] then
-           #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
-           #     cm.vm.provision "k8s-install-master-part-2",
-           #         type: "shell",
-           #         run: "always",
-           #         env: {"node_ip" => node_ip},
-           #         privileged: true,
-           #         path: k8sinstall
-           # end
+
+           if ENV["K8S"] then
+               k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
+               cm.vm.provision "k8s-install-master-part-2",
+                   type: "shell",
+                   run: "always",
+                   env: {"node_ip" => node_ip},
+                   privileged: true,
+                   path: k8sinstall
+           end
         end
     end
 
@@ -115,9 +115,11 @@ Vagrant.configure(2) do |config|
                 ipv6_addr = $workers_ipv6_addrs[n]
                 node.vm.network "private_network", ip: "#{nfs_ipv4_addr}", bridge: "enp0s9"
                 # Add IPv6 address this way or we get hit by a virtualbox bug
+                # puts "Running ipv6-config with worker #{$ipv6_addr}/16 on enp0s9"
                 node.vm.provision "ipv6-config",
                     type: "shell",
                     run: "always",
+                    privileged: true,
                     inline: "ip -6 a a #{ipv6_addr}/16 dev enp0s9"
                 if ENV["IPV6_EXT"] then
                     node_ip = "#{ipv6_addr}"
@@ -136,15 +138,15 @@ Vagrant.configure(2) do |config|
                 end
                 script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
                 node.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
-                # if ENV["K8S"] then
-                #     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
-                #     node.vm.provision "k8s-install-node-part-2",
-                #         type: "shell",
-                #         run: "always",
-                #         env: {"node_ip" => node_ip},
-                #         privileged: true,
-                #         path: k8sinstall
-                # end
+                if ENV["K8S"] then
+                    k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
+                    node.vm.provision "k8s-install-node-part-2",
+                        type: "shell",
+                        run: "always",
+                        env: {"node_ip" => node_ip},
+                        privileged: true,
+                        path: k8sinstall
+                end
             end
         end
     end

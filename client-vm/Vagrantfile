@@ -1,0 +1,66 @@
+# test	# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.require_version ">= 2.0.0"
+
+# Require 'yaml' module
+require 'yaml'
+
+# Read YAML file with VM details (box, CPU, RAM, IP addresses)
+# Be sure to edit servers.yml to provide correct IP addresses
+servers = YAML.load_file('./config.yaml')
+
+Vagrant.configure(2) do |config|
+    # Always use Vagrant's default insecure key
+    config.ssh.insert_key = true
+    servers.each do |servers|
+        config.vm.define servers["name"], primary: true do |srv|
+
+            srv.vm.box = "cilium/ubuntu-dev"
+            srv.vm.box_version = "108"
+
+            config.vm.provider "virtualbox" do |vb|
+                # Do not inherit DNS server from host, use proxy
+                vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+                vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
+
+                vb.name = servers["name"]
+                vb.memory = servers["ram"]
+                vb.cpus = servers["vcpu"]                
+                srv.vm.hostname = servers["name"]
+            end
+
+            if ENV["NFS"] then
+                mount_type = "nfs"
+                # Don't forget to enable this ports on your host before starting the VM
+                # in order to have nfs working
+                # iptables -I INPUT -p udp -s 192.168.34.0/24 --dport 111 -j ACCEPT
+                # iptables -I INPUT -p udp -s 192.168.34.0/24 --dport 2049 -j ACCEPT
+                # iptables -I INPUT -p udp -s 192.168.34.0/24 --dport 20048 -j ACCEPT
+            else
+                mount_type = ""
+            end
+            srv.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6', type: mount_type        
+
+            # intnet: not really used (enp0s8)
+            srv.vm.network "private_network", ip: servers["priv_ip"],
+                virtualbox__intnet: "earvwan-test",
+                :libvirt__guest_ipv6 => "yes",
+                :libvirt__dhcp_enabled => false
+            
+            $ipv6_addr = servers["ipv6_addr"]
+            $ipv4_addr = servers["ipv4_addr"]
+            # hostonly: enp0s9
+            srv.vm.network "private_network", ip: "#{$ipv4_addr}", bridge: "enp0s9"
+            # Add IPv6 address this way or we get hit by a virtualbox bug
+            srv.vm.provision "ipv6-config",
+                type: "shell",
+                run: "always",
+                privileged: true,
+                inline: "ip -6 a a #{$ipv6_addr} dev enp0s9"
+            
+            script = "./node-setup.sh"
+            srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
+        end
+    end 
+end

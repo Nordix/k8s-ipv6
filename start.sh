@@ -40,7 +40,6 @@ export 'IPV4'=${IPV4:-1}
 #   master  : FD00::B/16
 #   worker 1: FD00::C/16
 # The netmask used will be /16
-# ~EARVWAN~ This is the InternalIP for each node in k8. Try:  kubectl get nodes -o json | grep -i -C 10 InternalIP
 export 'IPV6_PUBLIC_CIDR'=${IPV4+"FD00::"}
 
 # Internal IPv6 node CIDR, always set up by default. Each node will be setup
@@ -49,6 +48,7 @@ export 'IPV6_PUBLIC_CIDR'=${IPV4+"FD00::"}
 #   master  : FD01::B/16
 #   worker 1: FD01::C/16
 # The netmask used will be /16
+# ~EARVWAN~ This is the InternalIP for each node in k8. Try:  kubectl get nodes -o json | grep -i -C 10 InternalIP
 export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 
 # Cilium IPv6 node CIDR. Each node will be setup with IPv6 network of
@@ -114,6 +114,9 @@ ip -6 a a ${vm_ipv6}/16 dev enp0s8
 
 echo '${master_ipv6} ${VM_BASENAME}1' >> /etc/hosts
 sysctl -w net.ipv6.conf.all.forwarding=1
+
+# For ipv6, default route will point to s9 interface
+ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
 
 EOF
 }

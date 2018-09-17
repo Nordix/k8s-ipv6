@@ -1,0 +1,18 @@
+---
+- name: vm-01
+  box: marcv81/xenial64
+  ram: 4096 
+  vcpu: 1 
+  priv_ip: 10.100.200.10
+  ipv4_addr: 192.168.80.202
+    ipv6_addr: cc00::2/16
+# - name: etcd-02
+#   box: marcv81/xenial64
+#   ram: 512
+#   vcpu: 1
+#   priv_ip: 192.168.80.203
+#   priv_ipv6: cc01::3/16
+#   public_ipv6: cc00::3/16
+
+# virtualbox images: ubuntu/trusty64 ubuntu/xenial64
+# vsphere images: slowe/ubuntu-trusty-x64

@@ -57,7 +57,7 @@ Vagrant.configure(2) do |config|
                 type: "shell",
                 run: "always",
                 privileged: true,
-                inline: "ip -6 a a #{$ipv6_addr} dev enp0s9"
+                inline: "ip -6 a a #{$ipv6_addr} dev enp0s9 || true"
             
             script = "./node-setup.sh"
             srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script

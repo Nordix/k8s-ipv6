@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+set -e
+export 'IPV6_GATEWAY'="CC00::1"
 
-# Use of IPv6 'documentation block' to provide example
-# ip -6 a a FD01::0B/16 dev enp0s8
+ip -6 r a default via "${IPV6_GATEWAY}" dev enp0s9 || true
 
 sysctl -w net.ipv6.conf.all.forwarding=1

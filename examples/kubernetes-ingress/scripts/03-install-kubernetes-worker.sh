@@ -234,7 +234,8 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/kube-proxy \\
-  --cluster-cidr=10.0.0.0/10 \\
+  --bind-address=:: \\
+  --cluster-cidr=${k8s_cluster_cidr} \\
   --kubeconfig=/var/lib/kube-proxy/kube-proxy.kubeconfig \\
   --proxy-mode=iptables \\
   --v=2

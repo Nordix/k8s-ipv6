@@ -9,3 +9,4 @@ sysctl -w net.ipv6.conf.all.forwarding=1
 
 # Install packages
 apt install conntrack # required by kube-proxy
+apt install ipset

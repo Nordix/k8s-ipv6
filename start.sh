@@ -418,6 +418,10 @@ export RUNTIME="${RUNTIME}"
 if [ -z "${RELOAD}" ]; then
     export INSTALL="1"
 fi
+# Use local binaries if desired
+if [ -n "${INSTALL_LOCAL_BUILD}" ]; then
+    export INSTALL_LOCAL_BUILD="1"
+fi
 export ETCD_CLEAN="${ETCD_CLEAN}"
 
 EOF
@@ -451,6 +455,10 @@ export NWORKERS="${NWORKERS}"
 # Only do installation if RELOAD is not set
 if [ -z "${RELOAD}" ]; then
     export INSTALL="1"
+fi
+# Use local binaries if desired
+if [ -n "${INSTALL_LOCAL_BUILD}" ]; then
+    export INSTALL_LOCAL_BUILD="1"
 fi
 export ETCD_CLEAN="${ETCD_CLEAN}"
 

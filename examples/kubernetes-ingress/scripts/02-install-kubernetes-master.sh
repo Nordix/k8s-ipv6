@@ -11,7 +11,7 @@ dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "${dir}/helpers.bash"
 
 cache_dir="${dir}/../../../hack/cache"
-
+local_build_dir="${dir}/../../../hack/local_builds/k8s/${k8s_version}"
 k8s_cache_dir="${cache_dir}/k8s/${k8s_version}"
 
 log "Installing kubernetes master components..."
@@ -44,12 +44,19 @@ cp "${certs_dir}/ca-k8s.pem" \
 cat "${certs_dir}/ca-k8s.pem" >> "/var/lib/kubernetes/k8s-api-server.pem"
 
 if [ -n "${INSTALL}" ]; then
-    for component in kubectl kube-apiserver kube-controller-manager kube-scheduler; do
-        download_to "${k8s_cache_dir}" "${component}" \
-            "https://dl.k8s.io/release/${k8s_version}/bin/linux/amd64/${component}"
+    if [ -n "${INSTALL_LOCAL_BUILD}" ]; then
+      log "Using local binaries in ${local_build_dir}"
+      for component in kubectl kube-apiserver kube-controller-manager kube-scheduler; do
+        cp "${local_build_dir}/${component}" .
+      done
+    else
+      for component in kubectl kube-apiserver kube-controller-manager kube-scheduler; do
+          download_to "${k8s_cache_dir}" "${component}" \
+              "https://dl.k8s.io/release/${k8s_version}/bin/linux/amd64/${component}"
 
-        cp "${k8s_cache_dir}/${component}" .
-    done
+          cp "${k8s_cache_dir}/${component}" .
+      done
+    fi
 
     chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
 

@@ -11,6 +11,7 @@ dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "${dir}/helpers.bash"
 
 cache_dir="${dir}/../../../hack/cache"
+local_build_dir="${dir}/../../../hack/local_builds/k8s/${k8s_version}"
 k8s_cache_dir="${cache_dir}/k8s/${k8s_version}"
 certs_dir="${dir}/certs"
 
@@ -41,12 +42,19 @@ set -e
 sudo mkdir -p /opt/cni/bin
 
 if [ -n "${INSTALL}" ]; then
-    for component in kubectl kubelet kube-proxy; do
-        download_to "${k8s_cache_dir}" "${component}" \
-            "https://dl.k8s.io/release/${k8s_version}/bin/linux/amd64/${component}"
+    if [ -n "${INSTALL_LOCAL_BUILD}" ]; then
+      log "Using local binaries in ${local_build_dir}"
+      for component in kubectl kubelet kube-proxy; do
+        cp "${local_build_dir}/${component}" .
+      done
+    else
+      for component in kubectl kubelet kube-proxy; do
+          download_to "${k8s_cache_dir}" "${component}" \
+              "https://dl.k8s.io/release/${k8s_version}/bin/linux/amd64/${component}"
 
-        cp "${k8s_cache_dir}/${component}" .
-    done
+          cp "${k8s_cache_dir}/${component}" .
+      done
+    fi
 
     download_to "${cache_dir}/cni" "cni-plugins-amd64-v0.7.1.tgz" \
         "https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz"

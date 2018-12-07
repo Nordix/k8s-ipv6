@@ -84,8 +84,16 @@ Vagrant.configure(2) do |config|
                    privileged: true,
                    path: k8sinstall
            end
+           script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
+           cm.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
+
            script = "#{ENV['EARVWAN_TEMP']}/node-1.sh"
            cm.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
+            
+            if ENV["GOBGP"] then
+                script = "./client-vm/gobgp-setup.sh"
+                cm.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
+            end
 
            if ENV["K8S"] then
                k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
@@ -136,8 +144,17 @@ Vagrant.configure(2) do |config|
                         privileged: true,
                         path: k8sinstall
                 end
+                script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
+                node.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
+
                 script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
                 node.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
+
+                if ENV["GOBGP"] then
+                    script = "./client-vm/gobgp-setup.sh"
+                    node.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
+                end
+
                 if ENV["K8S"] then
                     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
                     node.vm.provision "k8s-install-node-part-2",

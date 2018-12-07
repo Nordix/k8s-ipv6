@@ -25,18 +25,18 @@ export 'VAGRANT_DEFAULT_PROVIDER'=${VAGRANT_DEFAULT_PROVIDER:-"virtualbox"}
 
 # Master's IPv4 address. Workers' IPv4 address will have their IP incremented by
 # 1. The netmask used will be /24
-export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.11"}
+export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.8"}
 # NFS address is only set if NFS option is active. This will create a new
 # network interface for each VM with starting on this IP. This IP will be
 # available to reach from the host.
-export 'MASTER_IPV4_NFS'=${MASTER_IPV4_NFS:-"192.168.34.11"}
+export 'MASTER_IPV4_NFS'=${MASTER_IPV4_NFS:-"192.168.34.8"}
 # Enable IPv4 mode. It's enabled by default since it's required for several
 # runtime tests.
 export 'IPV4'=${IPV4:-1}
 
 # Exposed IPv6 node CIDR, only set if IPV4 is disabled. Each node will be setup
 # with a IPv6 network available from the host with $IPV6_PUBLIC_CIDR +
-# 6to4($MASTER_IPV4). For IPv4 "192.168.33.11" we will have for example:
+# 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will have for example:
 #   master  : FD00::B/16
 #   worker 1: FD00::C/16
 # The netmask used will be /16
@@ -44,7 +44,7 @@ export 'IPV6_PUBLIC_CIDR'=${IPV4+"FD00::"}
 
 # Internal IPv6 node CIDR, always set up by default. Each node will be setup
 # with a IPv6 network available from the host with IPV6_INTERNAL_CIDR +
-# 6to4($MASTER_IPV4). For IPv4 "192.168.33.11" we will have for example:
+# 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will have for example:
 #   master  : FD01::B/16
 #   worker 1: FD01::C/16
 # The netmask used will be /16
@@ -52,11 +52,13 @@ export 'IPV6_PUBLIC_CIDR'=${IPV4+"FD00::"}
 export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 
 # Cilium IPv6 node CIDR. Each node will be setup with IPv6 network of
-# $CILIUM_IPV6_NODE_CIDR + 6to4($MASTER_IPV4). For IPv4 "192.168.33.11" we will
+# $CILIUM_IPV6_NODE_CIDR + 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will
 # have for example:
-#   master  : FD02::0:0:0/96
-#   worker 1: FD02::1:0:0/96
+#   master  : FD02::C0A8:2108:0:0/96
+#   worker 1: FD02::C0A8:2109:0:0/96
 # ~EARVWAN~ This is the PodCIDR. Try: kubectl get nodes -o json | grep -i -C 10 podCIDR 
+# NOTE: I'm not sure embedding the ipv4 address in the podCIDR is all that useful, but I'll leave it for now.
+# It may be better in the future to just do #   master  : FD02::0:0:0/96   worker 1: FD02::1:0:0/96
 export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
 # VM memory
 
@@ -90,6 +92,19 @@ function get_cilium_node_gw_addr(){
     eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
 }
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+#               NAT64/DNS64 (written in node-1.sh, ...)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+function write_dns64_resolv_conf(){
+    dns64_ipv6="${1}"
+    filename="${2}"
+    cat <<EOF >> "${filename}"
+# NOTE: /etc/resolv.conf may get overwritten if DHCP is set on enp0s3.
+# TODO: Best to disable DHCP. 
+sed -i 's/nameserver.*/nameserver ${dns64_ipv6}/' /etc/resolv.conf 
+EOF
+}
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 				Network Configs (written in node-1.sh, ...)
@@ -231,6 +246,14 @@ EOF
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 							CNI Conf
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
+function write_cni_cfg(){
+    if [ "${CNI}" == "kube-router" ]; then
+        write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}"
+    else
+        write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}"
+    fi
+}
+
 function write_cni_bridge_cfg(){
     node_index="${1}"
     master_ipv4_suffix="${2}"
@@ -247,6 +270,35 @@ cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
     "type": "bridge",
     "bridge": "cni0",
     "isDefaultGateway": true,
+    "ipMasq": true,2
+    "ipam": {
+        "type": "host-local",
+        "subnet": "${ipv6_addr}/96"
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+}
+
+function write_cni_kuberouter_cfg(){
+    node_index="${1}"
+    master_ipv4_suffix="${2}"
+    ipv6_addr="${3}"
+    ipv6_gw_addr="${4}"
+    filename="${5}"
+
+cat <<EOF >> "$filename"
+
+cat <<EOF >> "/etc/cni/net.d/10-kuberouter.conf"
+{
+    "cniVersion": "0.3.0",
+    "name": "mynet",
+    "type": "bridge",
+    "bridge": "kube-bridge",
+    "isDefaultGateway": true,
     "ipMasq": true,
     "ipam": {
         "type": "host-local",
@@ -259,6 +311,7 @@ cat <<EOF >> "${filename}"
 
 EOF
 }
+
 
 function write_cni_lo_cfg(){
 cat <<EOF >> "$filename"
@@ -292,10 +345,17 @@ function create_master(){
         write_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
     fi
 
-	add_podCIDR_routes_on_master "${output_file}"
+    if [ -z "${CNI}" ]; then
+        # we only add manual routes if no cni plugin is defined. 
+	   add_podCIDR_routes_on_master "${output_file}"
+    fi
+
+    if [ -n "${DNS64_IPV6}" ]; then
+        write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
+    fi
 
     # write_cilium_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"
-    write_cni_bridge_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+    write_cni_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
 	# write_cni_lo_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"    
 }
 
@@ -323,10 +383,16 @@ function create_workers(){
             get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
             get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
             
-			add_podCIDR_routes_on_workers "${i}" "${output_file}"
+            if [ -z "${CNI}" ]; then
+                add_podCIDR_routes_on_workers "${i}" "${output_file}"
+            fi
+        
+            if [ -n "${DNS64_IPV6}" ]; then
+                write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
+            fi
 
             # write_cilium_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
-			write_cni_bridge_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+			write_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
 			# write_cni_lo_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
         done
     fi
@@ -389,10 +455,10 @@ function write_k8s_install() {
         # The k8s cluster cidr will be /80
         # it can be any value as long it's lower than /96
         # k8s will assign each node a cidr for example:
-        #   master  : FD02::0:0:0/96
-        #   worker 1: FD02::1:0:0/96
-        #   worker 1: FD02::2:0:0/96
-        k8s_cluster_cidr+="FD02::/80"
+        #   master  : FD02::C0A8:2108:0:0/96
+        #   worker 1: FD02::C0A8:2109:0:0/96
+        # The kube-controller-manager is responsible for incrementing 8, 9, A, ...
+        k8s_cluster_cidr+="FD02::C0A8:2108:0:0/93"
         k8s_node_cidr_mask_size="96"
         k8s_service_cluster_ip_range="FD03::/112"
         k8s_cluster_api_server_ip="FD03::1"

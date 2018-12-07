@@ -1,0 +1,33 @@
+This is a simple 2 VM gobgp test. We create netns on each VM (ns0) and assign IP addresses of 10.0.10.0/24 and 10.0.20.0/24 to the netns on vm-01 and vm-02 respectively. We next insert routes using gobgp cli and wait for the route advertizements between nodes. Note that gobgpd is running on both VMs; additionally, we use quagga/zebra to insert routes into the linux routing table. 
+
+------
+Setup
+------
+After the VMs have been created, do the following: 
+
+ * Create zebra.conf file and start zebra service on each VM: 
+
+	sudo cp zebra.conf /etc/quagga/zebra.conf 
+	sudo systemctl restart zebra.service 
+
+ * Start gobgpd on both VMs:
+	vm-01: gobgpd -p -f conf/gobgpd0.conf &
+	vm-02: gobgpd -p -f conf/gobgpd1.conf &
+
+ * Add rib entries via gobgp 
+	vm-01: gobgp global rib add 10.0.10.0/24
+	vm-02: gobgp global rib add 10.0.20.0/24
+
+ * Note: make sure that ipv4 forwarding is enabled. You may need to further disable
+	iptable rules: sudo ufw disable 
+
+We can now create our netns on each VM:
+	vm-01: sudo misc/netns_vm-01.sh
+	vm-02: sudo misc/netns_vm-02.sh
+
+
+ * At this point, we should be able to ping from one netns to the other netns. For example, from vm-02: 
+	$ ip netns exec ns0 ping 10.0.10.1
+
+Useful commands:
+	gobgp monitor global rib

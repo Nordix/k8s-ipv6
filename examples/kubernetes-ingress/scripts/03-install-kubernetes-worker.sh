@@ -285,7 +285,7 @@ ExecStart=/usr/bin/kubelet \\
   ${cgroup_driver} \\
   --kubeconfig=/var/lib/kubelet/kubelet.kubeconfig \\
   --fail-swap-on=false \\
-  --make-iptables-util-chains=false \\
+  --make-iptables-util-chains=true \\
   --network-plugin=cni \\
   --node-ip=${node_ip} \\
   --register-node=true \\

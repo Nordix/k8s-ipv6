@@ -474,6 +474,7 @@ function write_k8s_install() {
 # K8s
 k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
 export IPV6_EXT="${IPV6_EXT}"
+export K8S_VERSION="${K8S_VERSION}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
 export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
 export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
@@ -510,6 +511,7 @@ EOF
 # K8s installation 2nd half
 k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
 export IPV6_EXT="${IPV6_EXT}"
+export K8S_VERSION="${K8S_VERSION}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
 export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
 export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"

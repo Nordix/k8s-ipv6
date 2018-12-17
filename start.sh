@@ -270,7 +270,7 @@ cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
     "type": "bridge",
     "bridge": "cni0",
     "isDefaultGateway": true,
-    "ipMasq": true,2
+    "ipMasq": true,
     "ipam": {
         "type": "host-local",
         "subnet": "${ipv6_addr}/96"

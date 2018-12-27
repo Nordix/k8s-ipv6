@@ -62,7 +62,12 @@ export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
 # VM memory
 
+export 'CNI'="${CNI}"
 
+if [ "${CNI}" == "kube-router" ]; then
+    kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kube-router/local_builds/"
+    export 'Kuberouter_Vagrant_Bin_Dir'=${kuberouter_vagrant_bin_dir}
+fi
 
 # split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
 # Exits if ${2} is an invalid IPv4 address.
@@ -762,4 +767,5 @@ else
 	fi
 	echo "Add '127.0.0.1 k8s1' to your /etc/hosts to use vagrant.kubeconfig file for kubectl"
 fi
+
 

@@ -19,9 +19,6 @@ export 'VM_BASENAME'="k8s"
 
 # Set VAGRANT_DEFAULT_PROVIDER to virtualbox
 export 'VAGRANT_DEFAULT_PROVIDER'=${VAGRANT_DEFAULT_PROVIDER:-"virtualbox"}
-# Sets the default cilium TUNNEL_MODE to "vxlan"
-
-
 
 # Master's IPv4 address. Workers' IPv4 address will have their IP incremented by
 # 1. The netmask used will be /24
@@ -51,7 +48,7 @@ export 'IPV6_PUBLIC_CIDR'=${IPV4+"FD00::"}
 # ~EARVWAN~ This is the InternalIP for each node in k8. Try:  kubectl get nodes -o json | grep -i -C 10 InternalIP
 export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 
-# Cilium IPv6 node CIDR. Each node will be setup with IPv6 network of
+# IPv6 node CIDR. Each node will be setup with IPv6 network of
 # $CILIUM_IPV6_NODE_CIDR + 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will
 # have for example:
 #   master  : FD02::C0A8:2108:0:0/96
@@ -80,9 +77,9 @@ function split_ipv4(){
     fi
 }
 
-# get_cilium_node_addr sets the cilium node address in ${1} for the IPv4 address
+# get_node_addr sets the node address in ${1} for the IPv4 address
 # in ${2}.
-function get_cilium_node_addr(){
+function get_node_addr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
     hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
@@ -90,7 +87,7 @@ function get_cilium_node_addr(){
 }
 
 
-function get_cilium_node_gw_addr(){
+function get_node_gw_addr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
     hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
@@ -142,13 +139,13 @@ ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
 EOF
 }
 
-# write_master_route writes the cilium IPv4 and IPv6 routes for master in ${6}.
-# Uses the IPv4 suffix in ${1} for the IPv4 route and cilium IPv6 in ${2} via
+# write_master_route writes the IPv4 and IPv6 routes for master in ${6}.
+# Uses the IPv4 suffix in ${1} for the IPv4 route and IPv6 in ${2} via
 # ${3} for the IPv6 route. Sets the worker's hostname based on the index defined
 # in ${4} with the IPv6 defined in ${5}.
 function write_master_route(){
     master_ipv4_suffix="${1}"
-    master_cilium_ipv6="${2}"
+    master_ipv6="${2}"
     master_ipv6="${3}"
     node_index="${4}"
     worker_ipv6="${5}"
@@ -229,14 +226,14 @@ function add_podCIDR_routes_on_workers(){
     master_ip_suffix="${ipv4_array_l[3]}"
     master_ipv6=${IPV6_INTERNAL_CIDR}$(printf '%02X' ${master_ip_suffix})
 
-    get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+    get_node_addr master_ipv6 "${MASTER_IPV4}"
 
 cat <<EOF >> "${filename}"
 # Manual routes for podCIDRs:  
 EOF
 
 	# Add master podCIDR to worker
-	write_ip_route_entry "${master_cilium_ipv6}" "${master_ipv6}" "${filename}"
+	write_ip_route_entry "${master_ipv6}" "${master_ipv6}" "${filename}"
 
 	# Add entry of each worker, skipping self.
     for j in `seq 0 $(( NWORKERS - 1 ))`; do
@@ -342,8 +339,8 @@ EOF
 function create_master(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${MASTER_IPV4}"
-    get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
-    get_cilium_node_gw_addr ipv6_gw_addr "${MASTER_IPV4}"
+    get_node_addr master_ipv6 "${MASTER_IPV4}"
+    get_node_gw_addr ipv6_gw_addr "${MASTER_IPV4}"
     output_file="${dir}/node-1.sh"
     write_netcfg_header "${MASTER_IPV6}" "${MASTER_IPV6}" "${output_file}"
 
@@ -360,16 +357,16 @@ function create_master(){
         write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
     fi
 
-    # write_cilium_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"
-    write_cni_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
-	# write_cni_lo_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"    
+    # write_cfg 1 "${ipv4_array_l[3]}" "${master_ipv6}" "${output_file}"
+    write_cni_cfg 1 "${ipv4_array_l[3]}" "${master_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+	# write_cni_lo_cfg 1 "${ipv4_array_l[3]}" "${master_ipv6}" "${output_file}"    
 }
 
 function create_workers(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${MASTER_IPV4}"
     master_prefix_ip="${ipv4_array_l[3]}"
-    get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+    get_node_addr master_ipv6 "${MASTER_IPV4}"
   
     base_workers_ip=$(printf "%d.%d.%d." "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}")
     if [ -n "${NWORKERS}" ]; then
@@ -381,13 +378,13 @@ function create_workers(){
 
             write_netcfg_header "${worker_ipv6}" "${MASTER_IPV6}" "${output_file}"
 
-            write_master_route "${master_prefix_ip}" "${master_cilium_ipv6}" \
+            write_master_route "${master_prefix_ip}" "${master_ipv6}" \
                 "${MASTER_IPV6}" "${i}" "${worker_ipv6}" "${output_file}"
             write_nodes_routes "${i}" ${MASTER_IPV4} "${output_file}"
 
-            worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
-            get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
-            get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
+            worker_ipv4="${base_workers_ip}${worker_ip_suffix}"
+            get_node_addr worker_ipv6 "${worker_ipv4}"
+            get_node_gw_addr ipv6_gw_addr "${worker_ipv4}"
             
             if [ -z "${CNI}" ]; then
                 add_podCIDR_routes_on_workers "${i}" "${output_file}"
@@ -397,9 +394,9 @@ function create_workers(){
                 write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
             fi
 
-            # write_cilium_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
-			write_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
-			# write_cni_lo_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
+            # write_cfg "${i}" "${worker_ip_suffix}" "${worker_ipv6}" "${output_file}"
+			write_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_ipv6}" "${ipv6_gw_addr}" "${output_file}"
+			# write_cni_lo_cfg "${i}" "${worker_ip_suffix}" "${worker_ipv6}" "${output_file}"
         done
     fi
 }
@@ -420,9 +417,9 @@ function init_global_worker_addrs(){
             worker_host_ipv6=${IPV6_PUBLIC_CIDR}$(printf '%02X' ${worker_ip_suffix})
             ipv6_public_workers_addrs+=(${worker_host_ipv6})
 
-            worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
-            get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
-            ipv6_podCIDR_workers_addrs+=(${worker_cilium_ipv6})
+            worker_ipv4="${base_workers_ip}${worker_ip_suffix}"
+            get_node_addr worker_ipv6 "${worker_ipv4}"
+            ipv6_podCIDR_workers_addrs+=(${worker_ipv6})
         done
     fi
 }

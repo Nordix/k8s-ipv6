@@ -25,10 +25,12 @@ if [[ -n "${IPV6_EXT}" ]]; then
     # controllers_ips[1] contains the IP without brackets
     controllers_ips=( "[${master_ip}]" "${master_ip}" )
     dns_probes_ips=( "[::1]" "::1" )
+    kube_prox_bind_addr="::"
 else
     master_ip=${MASTER_IPV4:-"192.168.33.8"}
     controllers_ips=( "${master_ip}" "${master_ip}" )
     dns_probes_ips=( "127.0.0.1" "127.0.0.1" )
+    kube_prox_bind_addr="0.0.0.0"
 fi
 
 # container runtime options

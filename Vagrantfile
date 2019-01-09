@@ -46,7 +46,8 @@ Vagrant.configure(2) do |config|
             mount_type = ""
         end
         config.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6', type: mount_type        
-        config.vm.synced_folder '/home/awander/go/src/k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type        
+        config.vm.synced_folder '../../../k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type
+        config.vm.synced_folder '../../cloudnativelabs/kube-router', '/home/vagrant/go/src/github.com/cloudnativelabs/kube-router', type: mount_type
     end
 
     master_vm_name = "#{$vm_base_name}1"
@@ -87,7 +88,8 @@ Vagrant.configure(2) do |config|
             end
             script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
             cm.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
-
+            script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
+            cm.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
             script = "#{ENV['EARVWAN_TEMP']}/node-1.sh"
             cm.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
             # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
@@ -96,12 +98,10 @@ Vagrant.configure(2) do |config|
                 script = "./examples/kube-router/install-kube-router.sh"
                 cm.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['Kuberouter_Vagrant_Bin_Dir']}", "#{routerID}"]
             end
-            
             if ENV["GOBGP"] then
                 script = "./client-vm/gobgp-setup.sh"
                 cm.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
             end
-
            if ENV["K8S"] then
                k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
                cm.vm.provision "k8s-install-master-part-2",
@@ -153,7 +153,8 @@ Vagrant.configure(2) do |config|
                 end
                 script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
                 node.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
-
+                script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
+                node.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
                 script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
                 node.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
                 # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
@@ -162,12 +163,10 @@ Vagrant.configure(2) do |config|
                     script = "./examples/kube-router/install-kube-router.sh"
                     node.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['Kuberouter_Vagrant_Bin_Dir']}", "#{routerID}"]
                 end
-
                 if ENV["GOBGP"] then
                     script = "./client-vm/gobgp-setup.sh"
                     node.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
                 end
-
                 if ENV["K8S"] then
                     k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-2nd-part.sh"
                     node.vm.provision "k8s-install-node-part-2",

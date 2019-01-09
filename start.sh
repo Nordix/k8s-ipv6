@@ -134,6 +134,7 @@ ip -6 a a ${vm_ipv6}/16 dev enp0s8
 
 echo '${master_ipv6} ${VM_BASENAME}1' >> /etc/hosts
 sysctl -w net.ipv6.conf.all.forwarding=1
+sysctl -w net.ipv4.conf.all.forwarding=1
 
 # For ipv6, default route will point to s9 interface
 ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
@@ -581,7 +582,7 @@ function set_vagrant_env(){
 
     temp=$(printf " %s" "${ipv6_public_workers_addrs[@]}")
     export 'IPV6_PUBLIC_WORKERS_ADDRS'="${temp:1}"
-    echo "IPV6_PUBLIC_WORKERS_ADDRS: ${IPV6_PUBLIC_WORKERS_ADDRS}"
+    # echo "IPV6_PUBLIC_WORKERS_ADDRS: ${IPV6_PUBLIC_WORKERS_ADDRS}"
     if [[ "${IPV4}" -ne "1" ]]; then
         export 'IPV6_EXT'=1
     fi

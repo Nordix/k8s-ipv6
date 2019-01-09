@@ -115,10 +115,10 @@ EOF
 # 				Network Configs (written in node-1.sh, ...)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 
-# write_netcfg_header creates the file in ${3} and writes the internal network
+# write_ipv6_netcfg_header creates the file in ${3} and writes the internal network
 # configuration for the vm IP ${1}. Sets the master's hostname with IPv6 address
 # in ${2}.
-function write_netcfg_header(){
+function write_ipv6_netcfg_header(){
     vm_ipv6="${1}"
     master_ipv6="${2}"
     filename="${3}"
@@ -134,7 +134,6 @@ ip -6 a a ${vm_ipv6}/16 dev enp0s8
 
 echo '${master_ipv6} ${VM_BASENAME}1' >> /etc/hosts
 sysctl -w net.ipv6.conf.all.forwarding=1
-sysctl -w net.ipv4.conf.all.forwarding=1
 
 # For ipv6, default route will point to s9 interface
 ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
@@ -142,28 +141,44 @@ ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
 EOF
 }
 
-# write_master_route writes the cilium IPv4 and IPv6 routes for master in ${6}.
-# Uses the IPv4 suffix in ${1} for the IPv4 route and cilium IPv6 in ${2} via
-# ${3} for the IPv6 route. Sets the worker's hostname based on the index defined
-# in ${4} with the IPv6 defined in ${5}.
+# write_ipv4_netcfg_header creates the file in ${3} and writes the internal network
+# configuration for the vm IP ${1}. Sets the master's hostname with IPv4 address
+# in ${2}.
+function write_ipv4_netcfg_header(){
+    vm_ipv4="${1}"
+    master_ipv4="${2}"
+    filename="${3}"
+    cat <<EOF > "${filename}"
+#!/usr/bin/env bash
+
+if [ -n "${K8S}" ]; then
+    export K8S="1"
+fi
+
+echo '${master_ipv4} ${VM_BASENAME}1' >> /etc/hosts
+sysctl -w net.ipv4.conf.all.forwarding=1
+
+EOF
+}
+
 function write_master_route(){
     master_ipv4_suffix="${1}"
     master_cilium_ipv6="${2}"
     master_ipv6="${3}"
     node_index="${4}"
-    worker_ipv6="${5}"
+    worker_ip="${5}"
     filename="${6}"
 
     cat <<EOF >> "${filename}"
-echo "${worker_ipv6} ${VM_BASENAME}${node_index}" >> /etc/hosts
+echo "${worker_ip} ${VM_BASENAME}${node_index}" >> /etc/hosts
 
 EOF
 }
 
-# write_nodes_routes writes in file ${3} the routes for all nodes in the
+# write_ipv6_nodes_routes writes in file ${3} the routes for all nodes in the
 # clusters except for node with index ${1}. All routes will be based on IPv4
 # defined in ${2}.
-function write_nodes_routes(){
+function write_ipv6_nodes_routes(){
     node_index="${1}"
     base_ipv4_addr="${2}"
     filename="${3}"
@@ -192,6 +207,36 @@ EOF
 EOF
 }
 
+# write_ipv4_nodes_routes writes in file ${3} the routes for all nodes in the
+# clusters except for node with index ${1}.
+function write_ipv4_nodes_routes(){
+    node_index="${1}"
+    base_ipv4_addr="${2}"
+    filename="${3}"
+    local ipv4_array_l
+    cat <<EOF >> "${filename}"
+# Node's routes
+EOF
+    split_ipv4 ipv4_array_l "${base_ipv4_addr}"
+    local i
+    local index=1
+    for i in `seq $(( ipv4_array_l[3] + 1 )) $(( ipv4_array_l[3] + NWORKERS ))`; do
+        index=$(( index + 1 ))
+        if [ "${node_index}" -eq "${index}" ]; then
+            continue
+        fi
+        ipv4_addr=$(printf "%d.%d.%d.%d" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${i}")
+
+        cat <<EOF >> "${filename}"
+echo "${ipv4_addr} ${VM_BASENAME}${index}" >> /etc/hosts
+EOF
+    done
+
+    cat <<EOF >> "${filename}"
+
+EOF
+}
+
 function write_ip_route_entry(){
     podcidr="${1}"
     node_ipv6="${2}"
@@ -203,9 +248,9 @@ EOF
 }
 
 
-# add_podCIDRs_routes_on_master adds routes for the podCIDR of all the workers
+# add_ipv6_podCIDR_routes_on_master adds routes for the podCIDR of all the workers
 # on the master node.
-function add_podCIDR_routes_on_master(){
+function add_ipv6_podCIDR_routes_on_master(){
 	filename="${1}"        	
 cat <<EOF >> "${filename}"
 # Manual routes for podCIDRs:  
@@ -218,9 +263,9 @@ EOF
 
 }
 
-# add_podCIDR_routes_on_workers adds routes for podCIDRs of each node. 
+# add_ipv6_podCIDR_routes_on_workers adds routes for podCIDRs of each node. 
 # This is required for the cni bridge plugin for multi-node communication. 
-function add_podCIDR_routes_on_workers(){
+function add_ipv6_podCIDR_routes_on_workers(){
     node_index="${1}"
     filename="${2}"
 
@@ -252,20 +297,29 @@ EOF
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 							CNI Conf
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
-function write_cni_cfg(){
+function write_ipv6_cni_cfg(){
     if [ "${CNI}" == "kube-router" ]; then
-        write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}"
+        write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
     else
-        write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}"
+        write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
+    fi
+}
+
+function write_ipv4_cni_cfg(){
+    if [ "${CNI}" == "kube-router" ]; then
+        write_cni_kuberouter_cfg "${1}" "" "${3}" "${4}" "" "${6}"
+    else
+        write_cni_bridge_cfg "${1}" "" "${3}" "${4}" "" "${6}"
     fi
 }
 
 function write_cni_bridge_cfg(){
     node_index="${1}"
     master_ipv4_suffix="${2}"
-    ipv6_addr="${3}"
-    ipv6_gw_addr="${4}"
-    filename="${5}"
+    ip_addr="${3}"
+    mask_size="${4}"
+    ip_gw_addr="${5}"
+    filename="${6}"
 
 cat <<EOF >> "$filename"
 
@@ -279,7 +333,7 @@ cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
     "ipMasq": true,
     "ipam": {
         "type": "host-local",
-        "subnet": "${ipv6_addr}/96"
+        "subnet": "${ip_addr}/${mask_size}"
     }
 }
 EOF
@@ -292,9 +346,11 @@ EOF
 function write_cni_kuberouter_cfg(){
     node_index="${1}"
     master_ipv4_suffix="${2}"
-    ipv6_addr="${3}"
-    ipv6_gw_addr="${4}"
-    filename="${5}"
+    ip_addr="${3}"
+    mask_size="${4}"
+    ip_gw_addr="${5}"
+    filename="${6}"
+
 
 cat <<EOF >> "$filename"
 
@@ -308,7 +364,7 @@ cat <<EOF >> "/etc/cni/net.d/10-kuberouter.conf"
     "ipMasq": true,
     "ipam": {
         "type": "host-local",
-        "subnet": "${ipv6_addr}/96"
+        "subnet": "${ip_addr}/${mask_size}"
     }
 }
 EOF
@@ -345,24 +401,26 @@ function create_master(){
     get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
     get_cilium_node_gw_addr ipv6_gw_addr "${MASTER_IPV4}"
     output_file="${dir}/node-1.sh"
-    write_netcfg_header "${MASTER_IPV6}" "${MASTER_IPV6}" "${output_file}"
-
-    if [ -n "${NWORKERS}" ]; then
-        write_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
+    
+    if [[ "${IPV4}" -ne "1" ]]; then
+        write_ipv6_netcfg_header "${MASTER_IPV6}" "${MASTER_IPV6}" "${output_file}"
+        if [ -n "${NWORKERS}" ]; then
+            write_ipv6_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
+        fi
+        if [ -z "${CNI}" ]; then
+            # we only add manual routes if no cni plugin is defined. 
+    	   add_ipv6_podCIDR_routes_on_master "${output_file}"
+        fi
+        if [ -n "${DNS64_IPV6}" ]; then
+            write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
+        fi
+        write_ipv6_cni_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" 96 "${ipv6_gw_addr}" "${output_file}"
+    else
+        # IPv4
+        write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
+        write_ipv4_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
+        write_ipv4_cni_cfg 1 "" "10.0.0.0" 16 "" "${output_file}"
     fi
-
-    if [ -z "${CNI}" ]; then
-        # we only add manual routes if no cni plugin is defined. 
-	   add_podCIDR_routes_on_master "${output_file}"
-    fi
-
-    if [ -n "${DNS64_IPV6}" ]; then
-        write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
-    fi
-
-    # write_cilium_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"
-    write_cni_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
-	# write_cni_lo_cfg 1 "${ipv4_array_l[3]}" "${master_cilium_ipv6}" "${output_file}"    
 }
 
 function create_workers(){
@@ -379,27 +437,32 @@ function create_workers(){
             worker_ipv6=${IPV6_INTERNAL_CIDR}$(printf '%02X' ${worker_ip_suffix})
             worker_host_ipv6=${IPV6_PUBLIC_CIDR}$(printf '%02X' ${worker_ip_suffix})
 
-            write_netcfg_header "${worker_ipv6}" "${MASTER_IPV6}" "${output_file}"
+            if [[ "${IPV4}" -ne "1" ]]; then
+                write_ipv6_netcfg_header "${worker_ipv6}" "${MASTER_IPV6}" "${output_file}"
+                # TODO: I don't believe write_master_route does anything useful...
+                # write_master_route "${master_prefix_ip}" "${master_cilium_ipv6}" \
+                    # "${MASTER_IPV6}" "${i}" "${worker_ipv6}" "${output_file}"
+                write_ipv6_nodes_routes "${i}" "${MASTER_IPV4}" "${output_file}"
 
-            write_master_route "${master_prefix_ip}" "${master_cilium_ipv6}" \
-                "${MASTER_IPV6}" "${i}" "${worker_ipv6}" "${output_file}"
-            write_nodes_routes "${i}" ${MASTER_IPV4} "${output_file}"
-
-            worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
-            get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
-            get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
-            
-            if [ -z "${CNI}" ]; then
-                add_podCIDR_routes_on_workers "${i}" "${output_file}"
+                worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
+                get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
+                get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
+                if [ -z "${CNI}" ]; then
+                    add_ipv6_podCIDR_routes_on_workers "${i}" "${output_file}"
+                fi        
+                if [ -n "${DNS64_IPV6}" ]; then
+                    write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
+                fi
+    			write_ipv6_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" 96 "${ipv6_gw_addr}" "${output_file}"
+            else
+                # IPv4
+                let "id = $i - 1"
+                worker_ipv4=$(printf "10.%d.0.0" "${id}")
+                write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
+                # write_master_route "" "" "" "${i}" "${worker_ipv4}" "${output_file}"
+                write_ipv4_nodes_routes "${i}" "${MASTER_IPV4}" "${output_file}"
+                write_ipv4_cni_cfg "${i}" "" "${worker_ipv4}" 16 "" "${output_file}"
             fi
-        
-            if [ -n "${DNS64_IPV6}" ]; then
-                write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
-            fi
-
-            # write_cilium_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
-			write_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${ipv6_gw_addr}" "${output_file}"
-			# write_cni_lo_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${output_file}"
         done
     fi
 }

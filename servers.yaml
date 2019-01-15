@@ -1,0 +1,13 @@
+---
+- name: k8s1
+  box: cilium/ubuntu-dev
+  box_version: "108"
+  master: true
+  ram: 2048 
+  vcpu: 2
+- name: k8s2
+  box: cilium/ubuntu-dev
+  box_version: "108"
+  master: false
+  ram: 2048
+  vcpu: 1

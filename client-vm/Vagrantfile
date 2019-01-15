@@ -18,9 +18,6 @@ Vagrant.configure(2) do |config|
 
             srv.vm.box = servers["box"] 
             srv.vm.box_version = servers["box_version"]
-            # srv.vm.box = "cilium/ubuntu-dev"
-            # srv.vm.box_version = "108"
-
             config.vm.provider "virtualbox" do |vb|
                 # Do not inherit DNS server from host, use proxy
                 vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]

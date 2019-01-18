@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -e
 
+apt install -y gcc make pkg-config libnl-genl-3-dev autoconf libxtables-dev
+
+
 # Jool (NAT64)
 # Install Kernel Modules:
 # Reference: https://www.jool.mx/en/install-mod.html
-git clone https://github.com/NICMx/Jool.git
-dkms install Jool
-# Install User Modules:
-apt install -y gcc make pkg-config libnl-genl-3-dev autoconf
-cd Jool/usr
+# git clone https://github.com/NICMx/Jool.git
+# dkms install Jool
+# cd Jool/usr
+wget https://github.com/NICMx/Jool/archive/v3.5.7.tar.gz
+tar xvf v3.5.7.tar.gz
+dkms install Jool-3.5.7
+cd Jool-3.5.7/usr
 ./autogen.sh
 ./configure
 make

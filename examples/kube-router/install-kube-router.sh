@@ -3,7 +3,12 @@
 # Starts kube-router on kubernetes workers.
 #######################################
 
-sudo systemctl stop kube-router
+if systemctl is-active kube-router | grep -q 'inactive'; then
+ echo "kube-router not currently running"
+else
+	sudo systemctl stop kube-router
+fi
+
 sudo cp "${1}"kube-router "/usr/bin"
 
 sudo tee /etc/systemd/system/kube-router.service <<EOF

@@ -16,4 +16,4 @@ function ke () {
 
 EOF
 
-echo 'cd ~/go/src/github.com/Arvinderpal/k8-ipv6' >> /home/vagrant/.bashrc
+echo 'cd ~/go/src/github.com/Nordix/k8s-ipv6' >> /home/vagrant/.bashrc

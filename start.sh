@@ -65,7 +65,7 @@ export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
 export 'CNI'="${CNI}"
 
 if [ "${CNI}" == "kube-router" ]; then
-    kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kube-router/local_builds/"
+    kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/cloudnativelabs/kube-router/cmd/kube-router/"
     export 'Kuberouter_Vagrant_Bin_Dir'=${kuberouter_vagrant_bin_dir}
 fi
 
@@ -541,7 +541,7 @@ function write_k8s_install() {
 
     cat <<EOF >> "${filename}"
 # K8s
-k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
+k8s_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubernetes-ingress/scripts"
 export IPV6_EXT="${IPV6_EXT}"
 export K8S_VERSION="${K8S_VERSION}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
@@ -578,7 +578,7 @@ EOF
     cat <<EOF > "${filename_2nd_half}"
 #!/usr/bin/env bash
 # K8s installation 2nd half
-k8s_path="/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6/examples/kubernetes-ingress/scripts"
+k8s_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubernetes-ingress/scripts"
 export IPV6_EXT="${IPV6_EXT}"
 export K8S_VERSION="${K8S_VERSION}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"

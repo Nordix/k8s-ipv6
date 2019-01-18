@@ -52,7 +52,7 @@ Vagrant.configure(2) do |config|
             else
                 mount_type = ""
             end
-            config.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Arvinderpal/k8-ipv6', type: mount_type        
+            config.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Nordix/k8s-ipv6', type: mount_type        
             config.vm.synced_folder '../../../k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type
             config.vm.synced_folder '../../cloudnativelabs/kube-router', '/home/vagrant/go/src/github.com/cloudnativelabs/kube-router', type: mount_type
 

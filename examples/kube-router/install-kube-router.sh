@@ -3,6 +3,14 @@
 # Starts kube-router on kubernetes workers.
 #######################################
 
+if [[ "${3}" == *"--run-service-proxy=false"* ]]; then
+    echo "Kube-Proxy will be used"
+else
+	echo "Cleaning up any kube-proxy rules before starting kube-router with services handling"
+    sudo kube-proxy --cleanup
+fi
+
+
 if systemctl is-active kube-router | grep -q 'inactive'; then
  echo "kube-router not currently running"
 else
@@ -19,14 +27,8 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/kube-router \\
-  --v=3 \\
-  --kubeconfig=/home/vagrant/.kube/config \\
-  --run-firewall=false \\
-  --run-service-proxy=false \\
-  --run-router=true  \\
-  --advertise-cluster-ip=true \\
-  --routes-sync-period=10s \\
-  --router-id=${2}
+  --router-id=${2} \\
+  ${3}
 
 Restart=on-failure
 RestartSec=5

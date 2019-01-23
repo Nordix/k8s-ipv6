@@ -1,6 +1,6 @@
 # k8s-ipv6: Vagrant Based Kubernetes IPv6 Cluster
 
-This project serves two primary purposes: (i) study and validate ipv6 support in kubernetes and associated plugins (namely: metallb and kube-router) (ii) provide a dev environment for implementing and testing additional functionality (e.g.dual-stack)
+This project serves two primary purposes: (i) study and validate ipv6 support in kubernetes and associated plugins (ii) provide a dev environment for implementing and testing additional functionality (e.g.dual-stack)
 
 ## Getting Started
 
@@ -22,13 +22,11 @@ Additionally, you'll have to create a NAT64/DNS64 VM (vm-01) external to the clu
     cd client-vm/
     DNS64NAT64=1 vagrant up
 
-Provisioning is a lot faster if you precompile the k8s binaries (INSTALL_LOCAL_BUILD=1). See the section below on how to do this:
+We can create our cluster with the following command. CNI_ARGS contains kube-router specific options. Note that we are only using kube-router for pod-to-pod connectivity (--run-router=true). We also specify the address of the DNS translation server above (DNS64_IPV6=CC00::2). 
 
-    CNI=kube-router GOBGP=1 DNS64_IPV6=CC00::2 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=0 K8S=1 NWORKERS=1 ./start.sh
+    CNI_ARGS="--v=3 --kubeconfig=/home/vagrant/.kube/config --run-firewall=false --run-service-proxy=false --run-router=true  --advertise-cluster-ip=true --routes-sync-period=10s" CNI=kube-router GOBGP=1 DNS64_IPV6=CC00::2 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=0 K8S=1 NWORKERS=1 ./start.sh
 
-Otherwise, we'll have to download the binaries:
-
-    CNI=kube-router GOBGP=1 DNS64_IPV6=CC00::2 K8S_VERSION=v1.13.0 IPV4=0 K8S=1 NWORKERS=1 ./start.sh
+Note that provisioning is a lot faster if you precompile the k8s binaries (INSTALL_LOCAL_BUILD=1). See the section below on how to do build k8 localy. If we leave out INSTALL_LOCAL_BUILD binaies will be downloaded from the appropriate k8 release location.
 
 The following routes will be required on the host/laptop. Note that the assumption is that vm-01 is on vboxnet0 and k8s VMs are on vboxnet1. Addtionally, vm-01 is on the cc00:: subnet:
 
@@ -49,7 +47,9 @@ We can also add routes to access the pods directly. This is optional:
 
 ### IPv4 Cluster Using Kube-Router
 
-    CNI=kube-router GOBGP=1 K8S_VERSION=v1.13.0 IPV4=1 K8S=1 NWORKERS=1 ./start.sh
+Here we create an IPv4 based cluster with kube-router based pod-to-pod and services handling enabled: 
+
+    CNI_ARGS="--v=3 --kubeconfig=/home/vagrant/.kube/config --run-firewall=false --run-service-proxy=true --run-router=true  --advertise-cluster-ip=true --routes-sync-period=10s" CNI=kube-router GOBGP=1 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=1 K8S=1 NWORKERS=1 ./start.sh
 
 ## Using Local Builds of k8
 

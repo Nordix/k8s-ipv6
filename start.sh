@@ -66,8 +66,13 @@ export 'CNI'="${CNI}"
 
 if [ "${CNI}" == "kube-router" ]; then
     kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/cloudnativelabs/kube-router/cmd/kube-router/"
-    export 'Kuberouter_Vagrant_Bin_Dir'=${kuberouter_vagrant_bin_dir}
+    export 'KUBEROUTER_VAGRANT_BIN_DIR'=${kuberouter_vagrant_bin_dir}
 fi
+
+if [ -n "${CNI_ARGS}" ]; then
+    export CNI_ARGS="${CNI_ARGS}"
+fi
+
 
 # split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
 # Exits if ${2} is an invalid IPv4 address.

@@ -101,7 +101,7 @@ Vagrant.configure(2) do |config|
                     if ENV["CNI"] == "kube-router" then
                         routerID = "0x1"
                         script = "./examples/kube-router/install-kube-router.sh"
-                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['Kuberouter_Vagrant_Bin_Dir']}", "#{routerID}"]
+                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
                     end
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
@@ -161,7 +161,7 @@ Vagrant.configure(2) do |config|
                     if ENV["CNI"] == "kube-router" then
                         routerID = "0x#{n+2}"
                         script = "./examples/kube-router/install-kube-router.sh"
-                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['Kuberouter_Vagrant_Bin_Dir']}", "#{routerID}"]
+                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
                     end
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"

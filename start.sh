@@ -30,8 +30,7 @@ export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.8"}
 # network interface for each VM with starting on this IP. This IP will be
 # available to reach from the host.
 export 'MASTER_IPV4_NFS'=${MASTER_IPV4_NFS:-"192.168.34.8"}
-# Enable IPv4 mode. It's enabled by default since it's required for several
-# runtime tests.
+# Enable IPv4 mode.
 export 'IPV4'=${IPV4:-1}
 
 # Exposed IPv6 node CIDR, only set if IPV4 is disabled. Each node will be setup
@@ -60,18 +59,36 @@ export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 # NOTE: I'm not sure embedding the ipv4 address in the podCIDR is all that useful, but I'll leave it for now.
 # It may be better in the future to just do #   master  : FD02::0:0:0/96   worker 1: FD02::1:0:0/96
 export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
-# VM memory
 
-export 'CNI'="${CNI}"
+# CNI defaults
+export 'CNI'="${CNI:-"kube-router"}"
+export 'CNI_INSTALL_TYPE'="${CNI_INSTALL_TYPE:-"systemd"}"
+export 'DEFAULT_CNI_ARGS_SYSTEMD'="--v=3 --kubeconfig=/home/vagrant/.kube/config --run-firewall=false --run-service-proxy=false --run-router=true  --advertise-cluster-ip=true --routes-sync-period=10s"
+export 'DEFAULT_KUBEROUTER_MANIFEST'="examples/kube-router/ipv4-router-only-kube-router.yaml"
 
-if [ "${CNI}" == "kube-router" ]; then
-    kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/cloudnativelabs/kube-router/cmd/kube-router/"
-    export 'KUBEROUTER_VAGRANT_BIN_DIR'=${kuberouter_vagrant_bin_dir}
+if [ "${CNI}" == "bridge" ]; then
+    echo "Using bridge as the CNI plugin"
+else # default: kube-router
+    if [ "${CNI_INSTALL_TYPE}" == "daemonset" ]; then
+        if [ -n "${CNI_ARGS}" ]; then
+            export 'CNI_ARGS'="${CNI_ARGS}"
+        else
+            export 'CNI_ARGS'="${DEFAULT_KUBEROUTER_MANIFEST}"
+            echo "Using default yaml file: ${CNI_ARGS}. If desired, you can override this via CNI_ARGS"
+        fi
+    else # default is "systemd"
+        kuberouter_vagrant_bin_dir="/home/vagrant/go/src/github.com/cloudnativelabs/kube-router/cmd/kube-router/"
+        export 'KUBEROUTER_VAGRANT_BIN_DIR'=${kuberouter_vagrant_bin_dir}
+        if [ -n "${CNI_ARGS}" ]; then
+            export 'CNI_ARGS'="${CNI_ARGS}"
+        else
+            export 'CNI_ARGS'="${DEFAULT_CNI_ARGS_SYSTEMD}"
+            echo "using default kube-router args"
+        fi
+        echo "Installing kube-router via systemd using kube-router args: ${CNI_ARGS}"
+    fi
 fi
 
-if [ -n "${CNI_ARGS}" ]; then
-    export CNI_ARGS="${CNI_ARGS}"
-fi
 
 
 # split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
@@ -303,17 +320,19 @@ EOF
 # 							CNI Conf
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 function write_ipv6_cni_cfg(){
-    if [ "${CNI}" == "kube-router" ]; then
+    if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
-    else
+    elif [ -z "${CNI}" ]; then
+        # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
     fi
 }
 
 function write_ipv4_cni_cfg(){
-    if [ "${CNI}" == "kube-router" ]; then
+    if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "" "${3}" "${4}" "" "${6}"
-    else
+    elif [ -z "${CNI}" ]; then
+        # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "" "${3}" "${4}" "" "${6}"
     fi
 }
@@ -424,7 +443,7 @@ function create_master(){
         # IPv4
         write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
         write_ipv4_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
-        write_ipv4_cni_cfg 1 "" "10.0.0.0" 16 "" "${output_file}"
+        write_ipv4_cni_cfg 1 "" "10.128.0.0" 24 "" "${output_file}"
     fi
 }
 
@@ -462,11 +481,11 @@ function create_workers(){
             else
                 # IPv4
                 let "id = $i - 1"
-                worker_ipv4=$(printf "10.%d.0.0" "${id}")
+                worker_ipv4=$(printf "10.128.%d.0" "${id}")
                 write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
                 # write_master_route "" "" "" "${i}" "${worker_ipv4}" "${output_file}"
                 write_ipv4_nodes_routes "${i}" "${MASTER_IPV4}" "${output_file}"
-                write_ipv4_cni_cfg "${i}" "" "${worker_ipv4}" 16 "" "${output_file}"
+                write_ipv4_cni_cfg "${i}" "" "${worker_ipv4}" 24 "" "${output_file}"
             fi
         done
     fi
@@ -538,8 +557,8 @@ function write_k8s_install() {
         k8s_cluster_api_server_ip="FD03::1"
         k8s_cluster_dns_ip="FD03::A"
     fi
-    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.0.0.0/10"}
-    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"16"}
+    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.128.0.0/18"}
+    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"24"}
     k8s_service_cluster_ip_range=${k8s_service_cluster_ip_range:-"172.20.0.0/24"}
     k8s_cluster_api_server_ip=${k8s_cluster_api_server_ip:-"172.20.0.1"}
     k8s_cluster_dns_ip=${k8s_cluster_dns_ip:-"172.20.0.10"}

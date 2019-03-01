@@ -89,6 +89,9 @@ else # default: kube-router
     fi
 fi
 
+# kubeadm is used by default
+# alternative is to manually launch each component (cilium approach)
+export 'ENABLE_KUBEKDM'="${ENABLE_KUBEKDM:-"true"}"
 
 
 # split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
@@ -566,8 +569,12 @@ function write_k8s_install() {
     cat <<EOF >> "${filename}"
 # K8s
 k8s_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubernetes-ingress/scripts"
+kubeadm_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubeadm"
 export IPV6_EXT="${IPV6_EXT}"
 export K8S_VERSION="${K8S_VERSION}"
+export VM_BASENAME="k8s"
+export MASTER_IPV6="${MASTER_IPV6}"
+export MASTER_IPV6_PUBLIC="${MASTER_IPV6_PUBLIC}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
 export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
 export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
@@ -585,6 +592,22 @@ fi
 export ETCD_CLEAN="${ETCD_CLEAN}"
 
 EOF
+
+    if [ "${ENABLE_KUBEKDM}" == "true" ]; then
+    cat <<EOF >> "${filename}"
+if [[ "\$(hostname)" == "${VM_BASENAME}1" ]]; then
+    echo "\$(hostname)"
+    "\${kubeadm_path}/install-packages.sh"
+    "\${kubeadm_path}/init-control-plane.sh"
+else
+    echo "\$(hostname)"
+    "\${kubeadm_path}/install-packages.sh"
+    "\${kubeadm_path}/join-worker.sh"
+fi
+
+EOF
+
+    else
     cat <<EOF >> "${filename}"
 if [[ "\$(hostname)" == "${VM_BASENAME}1" ]]; then
     echo "\$(hostname)"
@@ -599,12 +622,17 @@ chown vagrant.vagrant -R "${k8s_dir}"
 
 EOF
 
+    fi
+
     cat <<EOF > "${filename_2nd_half}"
 #!/usr/bin/env bash
 # K8s installation 2nd half
 k8s_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubernetes-ingress/scripts"
 export IPV6_EXT="${IPV6_EXT}"
 export K8S_VERSION="${K8S_VERSION}"
+export VM_BASENAME="k8s"
+export MASTER_IPV6="${MASTER_IPV6}"
+export MASTER_IPV6_PUBLIC="${MASTER_IPV6_PUBLIC}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
 export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
 export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
@@ -625,12 +653,22 @@ export ETCD_CLEAN="${ETCD_CLEAN}"
 
 cd "${k8s_dir}"
 
+EOF
+    if [ "${ENABLE_KUBEKDM}" == "true" ]; then
+    cat <<EOF >> "${filename_2nd_half}"
+# using kubeadm...nothing to do here. 
+EOF
+    else
+    cat <<EOF >> "${filename_2nd_half}"
+
 if [[ "\$(hostname)" == "${VM_BASENAME}1" ]]; then
     "\${k8s_path}/06-install-kubedns.sh"
 else
     "\${k8s_path}/04-install-kubectl.sh"
 fi
 EOF
+
+    fi
 }
 
 # create_k8s_config creates k8s config
@@ -654,7 +692,6 @@ function set_vagrant_env(){
     split_ipv4 ipv4_array_l "${MASTER_IPV4}"
     export 'IPV4_BASE_ADDR'="$(printf "%d.%d.%d." "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}")"
     export 'FIRST_IP_SUFFIX'="${ipv4_array_l[3]}"
-    export 'MASTER_IPV6_PUBLIC'="${IPV6_PUBLIC_CIDR}$(printf '%02X' ${ipv4_array_l[3]})"
 
     split_ipv4 ipv4_array_nfs "${MASTER_IPV4_NFS}"
     export 'IPV4_BASE_ADDR_NFS'="$(printf "%d.%d.%d." "${ipv4_array_nfs[0]}" "${ipv4_array_nfs[1]}" "${ipv4_array_nfs[2]}")"
@@ -828,8 +865,8 @@ ipv6_podCIDR_workers_addrs=()
 ipv6_public_workers_addrs=()
 
 split_ipv4 ipv4_array "${MASTER_IPV4}"
-MASTER_IPV6="${IPV6_INTERNAL_CIDR}$(printf '%02X' ${ipv4_array[3]})"
-
+export 'MASTER_IPV6'="${IPV6_INTERNAL_CIDR}$(printf '%02X' ${ipv4_array[3]})"
+export 'MASTER_IPV6_PUBLIC'="${IPV6_PUBLIC_CIDR}$(printf '%02X' ${ipv4_array[3]})"
 set_reload_if_vm_exists
 
 init_global_worker_addrs # populates above arrays
@@ -850,10 +887,12 @@ elif [ -n "${PROVISION}" ]; then
 else
     vagrant up
     if [ -n "${K8S}" ]; then
-    	echo "copying k8 config file to vagrant.kubeconfig"
-		vagrant ssh k8s1 -- cat /home/vagrant/.kube/config | sed 's;server:.*:6443;server: https://k8s1:7443;g' > vagrant.kubeconfig		
+    	echo "copying k8 config file from k8s1 to host under the name vagrant.kubeconfig"
+		vagrant ssh k8s1 -- cat /home/vagrant/.kube/config | sed 's;server:.*:6443;server: https://k8s1:7443;g' > vagrant.kubeconfig
+        echo "copying vagrant.kubeconfig to host ~/.kube/config to use with kubectl"
+        cp vagrant.kubeconfig ~/.kube/config
 	fi
-	echo "Add '127.0.0.1 k8s1' to your /etc/hosts to use vagrant.kubeconfig file for kubectl"
+	echo "Add '127.0.0.1 k8s1' to your /etc/hosts to use ~/.kube/config file for kubectl"
 fi
 
 

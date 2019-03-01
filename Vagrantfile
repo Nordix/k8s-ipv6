@@ -82,6 +82,13 @@ Vagrant.configure(2) do |config|
                 end
                 srv.vm.hostname = servers["name"]
                 if ENV['EARVWAN_TEMP'] then
+                    script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
+                    srv.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
+                    script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
+                    srv.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
+                    script = "#{ENV['EARVWAN_TEMP']}/node-1.sh"
+                    srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
+
                     if ENV["K8S"] then
                        k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-1st-part.sh"
                        srv.vm.provision "k8s-install-master-part-1",
@@ -91,12 +98,6 @@ Vagrant.configure(2) do |config|
                            privileged: true,
                            path: k8sinstall
                     end
-                    script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
-                    srv.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
-                    script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
-                    srv.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
-                    script = "#{ENV['EARVWAN_TEMP']}/node-1.sh"
-                    srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
                     # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
                     if ENV["CNI"] == "kube-router" then
                         routerID = "0x1"
@@ -142,6 +143,13 @@ Vagrant.configure(2) do |config|
                 end
                 srv.vm.hostname = servers["name"]
                 if ENV['EARVWAN_TEMP'] then
+                    script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
+                    srv.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
+                    script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
+                    srv.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
+                    script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
+                    srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
+                    
                     if ENV["K8S"] then
                         k8sinstall = "#{ENV['EARVWAN_TEMP']}/k8s-install-1st-part.sh"
                         srv.vm.provision "k8s-install-node-part-1",
@@ -151,12 +159,6 @@ Vagrant.configure(2) do |config|
                             privileged: true,
                             path: k8sinstall
                     end
-                    script = "#{ENV['EARVWAN_TEMP']}/install-packages.sh"
-                    srv.vm.provision "install-packages", type: "shell", privileged: true, run: "always", path: script
-                    script = "#{ENV['EARVWAN_TEMP']}/env-setup.sh"
-                    srv.vm.provision "env-setup", type: "shell", privileged: false, run: "always", path: script
-                    script = "#{ENV['EARVWAN_TEMP']}/node-#{n+2}.sh"
-                    srv.vm.provision "config-install", type: "shell", privileged: true, run: "always", path: script
                     # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
                     if ENV["CNI"] == "kube-router" then
                         routerID = "0x#{n+2}"

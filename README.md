@@ -11,6 +11,10 @@ You will need to have virtualbox and vagrant installed.
     git clone https://github.com/Nordix/k8s-ipv6.git
     cd k8s-ipv6
 
+## Creating a K8s Cluster
+
+There are two ways to setup the cluster -- start individual components manaully (cilium approach) or use kubeadm. Kubeadm is the default option; however, you can set env var ENABLE_KUBEKDM == "false" to disable it. The current focus of this project is on IPv6 support for kube-router and the CNCF cni plugins -- bridge and host-local. 
+
 ### IPv6 Cluster Using Kube-Router
 
 By default, start.sh will look for the kube-router binary in this location. You will need to ensure the kube-router binary exists here or modify this path to the correct location. 
@@ -22,11 +26,17 @@ Additionally, you'll have to create a NAT64/DNS64 VM (vm-01) external to the clu
     cd client-vm/
     DNS64NAT64=1 vagrant up
 
-We can create our cluster with the following command. CNI_ARGS contains kube-router specific options. Note that we are only using kube-router for pod-to-pod connectivity (--run-router=true). We also specify the address of the DNS translation server above (DNS64_IPV6=CC00::2). 
+We can create our cluster with the following command:
+
+     GOBGP=1 DNS64_IPV6=CC00::2 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=0 K8S=1 NWORKERS=1 ./start.sh
+
+Note that we specify the address of the DNS translation server above with DNS64_IPV6=CC00::2. 
+
+Custom kube-router configurations can be passed via CNI_ARGS. In the example below, we are only using kube-router for pod-to-pod connectivity (--run-router=true). 
 
     CNI_ARGS="--v=3 --kubeconfig=/home/vagrant/.kube/config --run-firewall=false --run-service-proxy=false --run-router=true  --advertise-cluster-ip=true --routes-sync-period=10s" CNI=kube-router GOBGP=1 DNS64_IPV6=CC00::2 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=0 K8S=1 NWORKERS=1 ./start.sh
 
-Note that provisioning is a lot faster if you precompile the k8s binaries (INSTALL_LOCAL_BUILD=1). See the section below on how to do build k8 localy. If we leave out INSTALL_LOCAL_BUILD binaies will be downloaded from the appropriate k8 release location.
+Provisioning is a lot faster if you precompile the k8s binaries (INSTALL_LOCAL_BUILD=1). See the section below on how to do build k8 localy. If we leave out INSTALL_LOCAL_BUILD binaies will be downloaded from the appropriate k8 release location.
 
 The following routes will be required on the host/laptop. Note that the assumption is that vm-01 is on vboxnet0 and k8s VMs are on vboxnet1. Addtionally, vm-01 is on the cc00:: subnet:
 
@@ -47,7 +57,11 @@ We can also add routes to access the pods directly. This is optional:
 
 ### IPv4 Cluster Using Kube-Router
 
-Here we create an IPv4 based cluster with kube-router based pod-to-pod and services handling enabled: 
+    INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=1 K8S=1 NWORKERS=1 ./start.sh
+
+Note that IPV4=1 enables IPv4 addressing.
+
+As above, we can use CNI_ARGS to pass custom kube-router configs. Here we create an IPv4 based cluster with kube-router based pod-to-pod and services handling enabled: 
 
     CNI_ARGS="--v=3 --kubeconfig=/home/vagrant/.kube/config --run-firewall=false --run-service-proxy=true --run-router=true  --advertise-cluster-ip=true --routes-sync-period=10s" CNI=kube-router GOBGP=1 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 IPV4=1 K8S=1 NWORKERS=1 ./start.sh
 

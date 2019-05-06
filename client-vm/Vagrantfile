@@ -13,6 +13,8 @@ servers = YAML.load_file('./config.yaml')
 Vagrant.configure(2) do |config|
     # Always use Vagrant's default insecure key
     config.ssh.insert_key = true
+    config.vm.network "public_network", bridge: "wlp59s0"
+
     servers.each do |servers|
         config.vm.define servers["name"], primary: true do |srv|
 
@@ -42,10 +44,10 @@ Vagrant.configure(2) do |config|
             srv.vm.synced_folder '../', '/home/vagrant/go/src/github.com/Nordix/k8s-ipv6', type: mount_type        
 
             # intnet: not really used (enp0s8)
-            srv.vm.network "private_network", ip: servers["priv_ip"],
-                virtualbox__intnet: "earvwan-test",
-                :libvirt__guest_ipv6 => "yes",
-                :libvirt__dhcp_enabled => false
+            # srv.vm.network "private_network", ip: servers["priv_ip"],
+            #     virtualbox__intnet: "earvwan-test",
+            #     :libvirt__guest_ipv6 => "yes",
+            #     :libvirt__dhcp_enabled => false
             
             $ipv6_addr = servers["ipv6_addr"]
             $ipv4_addr = servers["ipv4_addr"]
@@ -62,8 +64,14 @@ Vagrant.configure(2) do |config|
             srv.vm.provision "node-setup", type: "shell", privileged: true, run: "always", path: script
             
             if ENV["DNS64NAT64"] then
-                script = "./dns64nat64-setup.sh"
-                srv.vm.provision "DNS64/NAT64-setup", type: "shell", privileged: true, run: "always", path: script
+                if ENV["TAYGA_BIND9"] || ENV["TAYGA_BIND9_DOCKER"] then
+                    script = "./taygabind9-setup.sh"
+                    srv.vm.provision "TaygaBind9", type: "shell", privileged: true, run: "always", path: script, args: ["#{ipv6_addr}", "#{ENV['TAYGA_BIND9_DOCKER']}"]
+                else
+                    # by default we use Jool and Bind9 processes
+                    script = "./joolbind9-setup.sh"
+                    srv.vm.provision "JoolBind9", type: "shell", privileged: true, run: "always", path: script
+                end
             end
             if ENV["GOBGP"] then
                 script = "./gobgp-setup.sh"

@@ -68,6 +68,13 @@ export 'DEFAULT_KUBEROUTER_MANIFEST'="examples/kube-router/ipv4-router-only-kube
 
 if [ "${CNI}" == "bridge" ]; then
     echo "Using bridge as the CNI plugin"
+elif [ "${CNI}" == "calico" ]; then
+    echo "Using calico as the CNI plugin"
+    CALICO_ETCD_EP_V6="http://[::1]:6666"
+    CALICO_ETCD_EP_V4="http://127.0.0.1:6666"
+    # calico-node-latest.tar should be in this directory:
+    calico_vagrant_base_dir="/home/vagrant/go/src/github.com/projectcalico/"
+    export 'CALICO_VAGRANT_BASE_DIR'=${calico_vagrant_base_dir}
 else # default: kube-router
     if [ "${CNI_INSTALL_TYPE}" == "daemonset" ]; then
         if [ -n "${CNI_ARGS}" ]; then
@@ -325,6 +332,8 @@ EOF
 function write_ipv6_cni_cfg(){
     if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
+    elif [[ "${CNI}" == "calico" ]]; then
+        write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv6"
     elif [ -z "${CNI}" ]; then
         # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
@@ -334,6 +343,8 @@ function write_ipv6_cni_cfg(){
 function write_ipv4_cni_cfg(){
     if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "" "${3}" "${4}" "" "${6}"
+    elif [[ "${CNI}" == "calico" ]]; then
+        write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv4"
     elif [ -z "${CNI}" ]; then
         # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "" "${3}" "${4}" "" "${6}"
@@ -369,6 +380,44 @@ cat <<EOF >> "${filename}"
 
 EOF
 }
+
+
+function write_cni_calico_cfg(){
+    node_index="${1}"
+    master_ipv4_suffix="${2}"
+    ip_addr="${3}"
+    mask_size="${4}"
+    ip_gw_addr="${5}"
+    filename="${6}"
+    addrFamily="${7}"
+
+# if [[ "${addrFamily}" == "IPv4" ]]; then
+
+cat <<EOF >> "$filename"
+
+cat <<EOF >> "/etc/cni/net.d/10-calico.conf"
+{
+    "name": "calico-k8s-network",
+    "type": "calico",
+    "etcd_endpoints": "${CALICO_ETCD_EP_V6}",
+    "log_level": "DEBUG",
+    "ipam": {
+        "type": "host-local",
+        "subnet": "usePodCidr"
+    },
+    "kubernetes": {
+        "kubeconfig": "/home/vagrant/.kube/config"
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+
+# fi
+}
+
 
 function write_cni_kuberouter_cfg(){
     node_index="${1}"

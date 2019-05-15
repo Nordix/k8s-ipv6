@@ -55,6 +55,9 @@ Vagrant.configure(2) do |config|
             config.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Nordix/k8s-ipv6', type: mount_type        
             config.vm.synced_folder '../../../k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type
             config.vm.synced_folder '../../cloudnativelabs/kube-router', '/home/vagrant/go/src/github.com/cloudnativelabs/kube-router', type: mount_type
+            config.vm.synced_folder '../../projectcalico/cni-plugin', '/home/vagrant/go/src/github.com/projectcalico/cni-plugin', type: mount_type
+            config.vm.synced_folder '../../projectcalico/node', '/home/vagrant/go/src/github.com/projectcalico/node', type: mount_type    
+            config.vm.synced_folder '../../projectcalico/calicoctl', '/home/vagrant/go/src/github.com/projectcalico/calicoctl', type: mount_type    
 
             if servers["master"] then
                 node_ip = "#{$master_ip}"
@@ -103,7 +106,11 @@ Vagrant.configure(2) do |config|
                         routerID = "0x1"
                         script = "./examples/kube-router/install-kube-router.sh"
                         srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
+                    elsif ENV["CNI"] == "calico" then
+                        script = "./examples/calico/install-calico.sh"
+                        srv.vm.provision "install-calico", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['CALICO_VAGRANT_BASE_DIR']}", "#{ENV['CNI_ARGS']}"]
                     end
+
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
                         srv.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
@@ -120,7 +127,7 @@ Vagrant.configure(2) do |config|
                 end
             else
                 node_ip = $workers_ipv4_addrs[n]
-                srv.vm.network "forwarded_port", guest: 6443, host: 8443
+                # srv.vm.network "forwarded_port", guest: 6443, host: 8443
                 srv.vm.network "private_network", ip: "#{node_ip}",
                     virtualbox__intnet: "earvwan-test",
                     :libvirt__guest_ipv6 => 'yes',
@@ -164,6 +171,9 @@ Vagrant.configure(2) do |config|
                         routerID = "0x#{n+2}"
                         script = "./examples/kube-router/install-kube-router.sh"
                         srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
+                    elsif ENV["CNI"] == "calico" then
+                        script = "./examples/calico/install-calico.sh"
+                        srv.vm.provision "install-calico", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['CALICO_VAGRANT_BASE_DIR']}", "#{ENV['CNI_ARGS']}"]
                     end
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"

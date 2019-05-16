@@ -3,13 +3,8 @@
 # Installs and Starts Calico 
 #######################################
 
-CNI_INSTALL_TYPE=${1}
-CALICO_VAGRANT_BASE_DIR=${2}
-CNI_ARGS=${4}
+ROUTER_ID=${1}
 
-# Ensure that these match with values in start.sh
-CALICO_ETCD_EP_V6="http://[::1]:6666"
-CALICO_ETCD_EP_V4="http://127.0.0.1:6666"
 cp "${CALICO_VAGRANT_BASE_DIR}"cni-plugin/bin/amd64/* /opt/cni/bin 
 chmod +x /opt/cni/bin/calico /opt/cni/bin/calico-ipam
 cp "${CALICO_VAGRANT_BASE_DIR}"calicoctl/bin/* /usr/local/bin 
@@ -41,6 +36,9 @@ ExecStart=/usr/bin/docker run --net=host --privileged --name=calico-node \
   -e IP6= \
   -e CALICO_NETWORKING_BACKEND=bird \
   -e CALICO_STARTUP_LOGLEVEL=debug \
+  -e IP_AUTODETECTION_METHOD=interface=enp0s8 \
+  -e KUBECONFIG=/home/vagrant/.kube/config \
+  -e CALICO_IPV4POOL_CIDR= \
   -v /var/run/calico:/var/run/calico \
   -v /var/lib/calico:/var/lib/calico \
   -v /lib/modules:/lib/modules \

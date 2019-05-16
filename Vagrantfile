@@ -102,15 +102,15 @@ Vagrant.configure(2) do |config|
                            path: k8sinstall
                     end
                     # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
-                    if ENV["CNI"] == "kube-router" then
-                        routerID = "0x1"
-                        script = "./examples/kube-router/install-kube-router.sh"
-                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
-                    elsif ENV["CNI"] == "calico" then
-                        script = "./examples/calico/install-calico.sh"
-                        srv.vm.provision "install-calico", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['CALICO_VAGRANT_BASE_DIR']}", "#{ENV['CNI_ARGS']}"]
-                    end
-
+                    cni_install = "#{ENV['EARVWAN_TEMP']}/k8s-install-cni.sh"
+                    routerID = "0x1"
+                    srv.vm.provision "k8s-install-cni",
+                        type: "shell",
+                        run: "always",
+                        privileged: true,
+                        path: cni_install,
+                        args: ["#{routerID}"]
+                    
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
                         srv.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script
@@ -167,14 +167,15 @@ Vagrant.configure(2) do |config|
                             path: k8sinstall
                     end
                     # Only run install-kube-router after node-X above. node-X sets up the cni conf files.
-                    if ENV["CNI"] == "kube-router" then
-                        routerID = "0x#{n+2}"
-                        script = "./examples/kube-router/install-kube-router.sh"
-                        srv.vm.provision "install-kube-router", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['KUBEROUTER_VAGRANT_BIN_DIR']}", "#{routerID}", "#{ENV['CNI_ARGS']}"]
-                    elsif ENV["CNI"] == "calico" then
-                        script = "./examples/calico/install-calico.sh"
-                        srv.vm.provision "install-calico", type: "shell", privileged: true, run: "always", path: script, args: ["#{ENV['CNI_INSTALL_TYPE']}", "#{ENV['CALICO_VAGRANT_BASE_DIR']}", "#{ENV['CNI_ARGS']}"]
-                    end
+                    cni_install = "#{ENV['EARVWAN_TEMP']}/k8s-install-cni.sh"
+                    routerID = "0x#{n+2}"
+                    srv.vm.provision "k8s-install-cni",
+                        type: "shell",
+                        run: "always",
+                        privileged: true,
+                        path: cni_install,
+                        args: ["#{routerID}"]
+                        
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
                         srv.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script

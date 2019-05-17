@@ -58,6 +58,7 @@ Vagrant.configure(2) do |config|
             config.vm.synced_folder '../../projectcalico/cni-plugin', '/home/vagrant/go/src/github.com/projectcalico/cni-plugin', type: mount_type
             config.vm.synced_folder '../../projectcalico/node', '/home/vagrant/go/src/github.com/projectcalico/node', type: mount_type    
             config.vm.synced_folder '../../projectcalico/calicoctl', '/home/vagrant/go/src/github.com/projectcalico/calicoctl', type: mount_type    
+            config.vm.synced_folder '../../projectcalico/kube-controllers', '/home/vagrant/go/src/github.com/projectcalico/kube-controllers ', type: mount_type    
 
             if servers["master"] then
                 node_ip = "#{$master_ip}"
@@ -107,7 +108,7 @@ Vagrant.configure(2) do |config|
                     srv.vm.provision "k8s-install-cni",
                         type: "shell",
                         run: "always",
-                        privileged: true,
+                        privileged: false,
                         path: cni_install,
                         args: ["#{routerID}"]
                     
@@ -172,10 +173,10 @@ Vagrant.configure(2) do |config|
                     srv.vm.provision "k8s-install-cni",
                         type: "shell",
                         run: "always",
-                        privileged: true,
+                        privileged: false,
                         path: cni_install,
                         args: ["#{routerID}"]
-                        
+                
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
                         srv.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script

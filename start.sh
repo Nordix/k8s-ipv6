@@ -72,6 +72,7 @@ elif [ "${CNI}" == "calico" ]; then
     echo "Using calico as the CNI plugin"
     export CALICO_ETCD_EP_V6="http://[::1]:6666"
     export CALICO_ETCD_EP_V4="http://127.0.0.1:6666"
+    export CALICO_PRELOAD_LOCAL_IMAGES="true" 
     # calico-node-latest.tar should be in this directory:
     calico_vagrant_base_dir="/home/vagrant/go/src/github.com/projectcalico/"
     export 'CALICO_VAGRANT_BASE_DIR'=${calico_vagrant_base_dir}
@@ -543,12 +544,13 @@ EOF
 
     elif [ "${CNI}" == "calico" ]; then
     cat <<EOF >> "${filename}"
-calico_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/calico"
+export CALICO_PATH="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/calico/"
 export CALICO_VAGRANT_BASE_DIR="${CALICO_VAGRANT_BASE_DIR}"
 export CALICO_ETCD_EP_V6="${CALICO_ETCD_EP_V6}"
 export CALICO_ETCD_EP_V4="${CALICO_ETCD_EP_V4}"
+export CALICO_PRELOAD_LOCAL_IMAGES="${CALICO_PRELOAD_LOCAL_IMAGES}"
 
-"\${calico_path}/install-calico.sh"
+"\${CALICO_PATH}/install-calico.sh"
 EOF
 
     else # kube-router is default

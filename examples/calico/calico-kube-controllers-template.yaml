@@ -1,0 +1,38 @@
+# Calico Version v3.7.2
+# https://docs.projectcalico.org/v3.7/releases#v3.7.2
+# This manifest includes the following component versions:
+#   calico/kube-controllers:v3.7.2
+
+# Create this manifest using kubectl to deploy
+# the Calico Kubernetes controllers.
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: calico-kube-controllers
+  namespace: kube-system
+  labels:
+    k8s-app: calico-kube-controllers
+spec:
+  # Only a single instance of the this pod should be
+  # active at a time.  Since this pod is run as a Deployment,
+  # Kubernetes will ensure the pod is recreated in case of failure,
+  # removing the need for passive backups.
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: calico-kube-controllers
+      namespace: kube-system
+      labels:
+        k8s-app: calico-kube-controllers
+    spec:
+      hostNetwork: true
+      containers:
+        - name: calico-kube-controllers
+          # Make sure to pin this to your desired version.
+          image: calico/kube-controllers:v3.7.2
+          env:
+            # Configure the location of your etcd cluster.
+            - name: ETCD_ENDPOINTS
+              value: "ADD_ETCD_ENDPOINTS_HERE"

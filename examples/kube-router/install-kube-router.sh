@@ -3,10 +3,7 @@
 # Starts kube-router on kubernetes workers.
 #######################################
 
-CNI_INSTALL_TYPE=${1}
-KUBEROUTER_VAGRANT_BIN_DIR=${2}
-ROUTER_ID=${3}
-CNI_ARGS=${4}
+ROUTER_ID=${1}
 
 if [ "${CNI_INSTALL_TYPE}" == "systemd" ]; then
 	if [[ "${CNI_ARGS}" == *"--run-service-proxy=false"* ]]; then

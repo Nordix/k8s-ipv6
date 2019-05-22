@@ -60,6 +60,21 @@ export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 # It may be better in the future to just do #   master  : FD02::0:0:0/96   worker 1: FD02::1:0:0/96
 export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
 
+# split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
+# Exits if ${2} is an invalid IPv4 address.
+function split_ipv4(){
+    IFS='.' read -r -a ipv4_array <<< "${2}"
+    eval "${1}=( ${ipv4_array[@]} )"
+    if [[ "${#ipv4_array[@]}" -ne 4 ]]; then
+        echo "Invalid IPv4 address: ${2}"
+        exit 1
+    fi
+}
+
+split_ipv4 ipv4_array "${MASTER_IPV4}"
+export 'MASTER_IPV6'="${IPV6_INTERNAL_CIDR}$(printf '%02X' ${ipv4_array[3]})"
+export 'MASTER_IPV6_PUBLIC'="${IPV6_PUBLIC_CIDR}$(printf '%02X' ${ipv4_array[3]})"
+
 # CNI defaults
 export 'CNI'="${CNI:-"kube-router"}"
 export 'CNI_INSTALL_TYPE'="${CNI_INSTALL_TYPE:-"systemd"}"
@@ -68,6 +83,14 @@ export 'DEFAULT_KUBEROUTER_MANIFEST'="examples/kube-router/ipv4-router-only-kube
 
 if [ "${CNI}" == "bridge" ]; then
     echo "Using bridge as the CNI plugin"
+elif [ "${CNI}" == "calico" ]; then
+    echo "Using calico as the CNI plugin"
+    export CALICO_ETCD_EP_V4=http://"${MASTER_IPV4}":6666
+    export CALICO_ETCD_EP_V6="http://[${MASTER_IPV6}]:6666"
+    export CALICO_PRELOAD_LOCAL_IMAGES="true" 
+    # calico-node-latest.tar should be in this directory:
+    calico_vagrant_base_dir="/home/vagrant/go/src/github.com/projectcalico/"
+    export 'CALICO_VAGRANT_BASE_DIR'=${calico_vagrant_base_dir}
 else # default: kube-router
     if [ "${CNI_INSTALL_TYPE}" == "daemonset" ]; then
         if [ -n "${CNI_ARGS}" ]; then
@@ -92,18 +115,6 @@ fi
 # kubeadm is used by default
 # alternative is to manually launch each component (cilium approach)
 export 'ENABLE_KUBEKDM'="${ENABLE_KUBEKDM:-"true"}"
-
-
-# split_ipv4 splits an IPv4 address into a bash array and assigns it to ${1}.
-# Exits if ${2} is an invalid IPv4 address.
-function split_ipv4(){
-    IFS='.' read -r -a ipv4_array <<< "${2}"
-    eval "${1}=( ${ipv4_array[@]} )"
-    if [[ "${#ipv4_array[@]}" -ne 4 ]]; then
-        echo "Invalid IPv4 address: ${2}"
-        exit 1
-    fi
-}
 
 # get_cilium_node_addr sets the cilium node address in ${1} for the IPv4 address
 # in ${2}.
@@ -325,6 +336,8 @@ EOF
 function write_ipv6_cni_cfg(){
     if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
+    elif [[ "${CNI}" == "calico" ]]; then
+        write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv6"
     elif [ -z "${CNI}" ]; then
         # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
@@ -334,6 +347,8 @@ function write_ipv6_cni_cfg(){
 function write_ipv4_cni_cfg(){
     if [[ "${CNI}" == "kube-router" && "${CNI_INSTALL_TYPE}" == "systemd" ]]; then
         write_cni_kuberouter_cfg "${1}" "" "${3}" "${4}" "" "${6}"
+    elif [[ "${CNI}" == "calico" ]]; then
+        write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv4"
     elif [ -z "${CNI}" ]; then
         # if no cni is defined, we default to bridge
         write_cni_bridge_cfg "${1}" "" "${3}" "${4}" "" "${6}"
@@ -369,6 +384,68 @@ cat <<EOF >> "${filename}"
 
 EOF
 }
+
+
+function write_cni_calico_cfg(){
+    node_index="${1}"
+    master_ipv4_suffix="${2}"
+    ip_addr="${3}"
+    mask_size="${4}"
+    ip_gw_addr="${5}"
+    filename="${6}"
+    addrFamily="${7}"
+
+if [[ "${addrFamily}" == "IPv4" ]]; then
+#     "cniVersion": "0.6.0",
+cat <<EOF >> "$filename"
+
+cat <<EOF >> "/etc/cni/net.d/10-calico.conf"
+{
+    "name": "calico-k8s-network",
+    "type": "calico",
+    "etcd_endpoints": "${CALICO_ETCD_EP_V4}",
+    "log_level": "DEBUG",
+    "ipam": {
+        "type": "calico-ipam"
+    },
+    "kubernetes": {
+        "kubeconfig": "/home/vagrant/.kube/config"
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+
+else
+
+cat <<EOF >> "$filename"
+
+cat <<EOF >> "/etc/cni/net.d/10-calico.conf"
+{
+    "name": "calico-k8s-network",
+    "type": "calico",
+    "etcd_endpoints": "${CALICO_ETCD_EP_V4}",
+    "log_level": "DEBUG",
+    "ipam": {
+        "type": "calico-ipam",
+        "assign_ipv4": "false",
+        "assign_ipv6": "true"
+    },
+    "kubernetes": {
+        "kubeconfig": "/home/vagrant/.kube/config"
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+
+fi
+}
+
 
 function write_cni_kuberouter_cfg(){
     node_index="${1}"
@@ -414,6 +491,79 @@ EOF
 cat <<EOF >> "${filename}"
 
 EOF
+
+}
+
+function write_cni_install_file() {
+    k8s_dir="${1}"
+    filename="${2}"
+    if [[ -n "${IPV6_EXT}" ]]; then
+        # The k8s cluster cidr will be /80
+        # it can be any value as long it's lower than /96
+        # k8s will assign each node a cidr for example:
+        #   master  : FD02::C0A8:2108:0:0/96
+        #   worker 1: FD02::C0A8:2109:0:0/96
+        # The kube-controller-manager is responsible for incrementing 8, 9, A, ...
+        k8s_cluster_cidr="FD02::C0A8:2108:0:0/93"
+        k8s_node_cidr_mask_size="96"
+        k8s_service_cluster_ip_range="FD03::/112"
+        k8s_cluster_api_server_ip="FD03::1"
+        k8s_cluster_dns_ip="FD03::A"
+    fi
+    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.128.0.0/18"}
+    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"24"}
+    k8s_service_cluster_ip_range=${k8s_service_cluster_ip_range:-"172.20.0.0/24"}
+    k8s_cluster_api_server_ip=${k8s_cluster_api_server_ip:-"172.20.0.1"}
+    k8s_cluster_dns_ip=${k8s_cluster_dns_ip:-"172.20.0.10"}
+
+    cat <<EOF > "${filename}"
+#!/usr/bin/env bash
+
+set -e
+
+export IPV6_EXT="${IPV6_EXT}"
+export K8S_VERSION="${K8S_VERSION}"
+export VM_BASENAME="k8s"
+export MASTER_IPV4="${MASTER_IPV4}"
+export MASTER_IPV6="${MASTER_IPV6}"
+export MASTER_IPV6_PUBLIC="${MASTER_IPV6_PUBLIC}"
+export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
+export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
+export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
+export K8S_CLUSTER_API_SERVER_IP="${k8s_cluster_api_server_ip}"
+export K8S_CLUSTER_DNS_IP="${k8s_cluster_dns_ip}"
+export RUNTIME="${RUNTIME}"
+export CNI_INSTALL_TYPE="${CNI_INSTALL_TYPE}"
+export CNI_ARGS="${CNI_ARGS}"
+MASTER=\${1}
+ROUTER_ID=\${2}
+
+EOF
+
+    if [ "${CNI}" == "bridge" ]; then
+    cat <<EOF >> "${filename}"
+# bridge cni. nothing to do here.
+EOF
+
+    elif [ "${CNI}" == "calico" ]; then
+    cat <<EOF >> "${filename}"
+export CALICO_PATH="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/calico/"
+export CALICO_VAGRANT_BASE_DIR="${CALICO_VAGRANT_BASE_DIR}"
+export CALICO_ETCD_EP_V4="${CALICO_ETCD_EP_V4}"
+export CALICO_ETCD_EP_V6="${CALICO_ETCD_EP_V6}"
+export CALICO_PRELOAD_LOCAL_IMAGES="${CALICO_PRELOAD_LOCAL_IMAGES}"
+
+"\${CALICO_PATH}/install-calico.sh" \$MASTER \$ROUTER_ID
+EOF
+
+    else # kube-router is default
+    cat <<EOF >> "${filename}"
+kuberouter_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kube-router"
+export KUBEROUTER_VAGRANT_BIN_DIR="${KUBEROUTER_VAGRANT_BIN_DIR}"
+"\${kuberouter_path}/install-kube-router.sh" $MASTER $ROUTER_ID
+EOF
+
+    fi
 
 }
 
@@ -631,6 +781,7 @@ k8s_path="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/kubernetes-in
 export IPV6_EXT="${IPV6_EXT}"
 export K8S_VERSION="${K8S_VERSION}"
 export VM_BASENAME="k8s"
+export MASTER_IPV4="${MASTER_IPV4}"
 export MASTER_IPV6="${MASTER_IPV6}"
 export MASTER_IPV6_PUBLIC="${MASTER_IPV6_PUBLIC}"
 export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
@@ -681,6 +832,16 @@ function create_k8s_config(){
         write_k8s_install "${k8s_temp_dir}" "${output_file}" "${output_2nd_file}"
     fi
 }
+
+# create_cni_config creates cni config 
+function create_cni_config(){
+    if [ -n "${K8S}" ]; then
+        k8s_temp_dir="/home/vagrant/k8s"
+        output_file="${dir}/k8s-install-cni.sh"
+        write_cni_install_file "${k8s_temp_dir}" "${output_file}"
+    fi
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 # 						Vagrant & Virtualbox Functions 
@@ -864,9 +1025,6 @@ ipv6_internal_workers_addrs=()
 ipv6_podCIDR_workers_addrs=()
 ipv6_public_workers_addrs=()
 
-split_ipv4 ipv4_array "${MASTER_IPV4}"
-export 'MASTER_IPV6'="${IPV6_INTERNAL_CIDR}$(printf '%02X' ${ipv4_array[3]})"
-export 'MASTER_IPV6_PUBLIC'="${IPV6_PUBLIC_CIDR}$(printf '%02X' ${ipv4_array[3]})"
 set_reload_if_vm_exists
 
 init_global_worker_addrs # populates above arrays
@@ -874,7 +1032,8 @@ init_global_worker_addrs # populates above arrays
 create_master
 create_workers
 set_vagrant_env
-create_k8s_config							
+create_k8s_config	
+create_cni_config						
 
 # cd "${dir}/../.."
 

@@ -13,7 +13,48 @@ You will need to have virtualbox and vagrant installed.
 
 ## Creating a K8s Cluster
 
-There are two ways to setup the cluster -- start individual components manaully (cilium approach) or use kubeadm. Kubeadm is the default option; however, you can set env var ENABLE_KUBEKDM == "false" to disable it. The current focus of this project is on IPv6 support for kube-router and the CNCF cni plugins -- bridge and host-local. 
+There are two ways to setup the cluster -- start individual components manaully (cilium approach) or use kubeadm. Kubeadm is the default option; however, you can set env var ENABLE_KUBEKDM == "false" to disable it. The current focus of this project is on IPv6 support for calico, kube-router and the CNCF cni plugins -- bridge and host-local. 
+
+## Calico
+
+Calico can be installed via systemd (default) or as a privileged pod. The current release is set to v3.7.1 but this can be changed. Additionally, since this is meant as a dev environment, it is assumed that the following calico repos have been cloned locally and the binaries/docker-images pre-built:
+    
+    1. CNI-Plugin
+    2. Calico/Node 
+    3. Calico-kube-controllers
+    4. Calicoctl
+
+The current approach sets up a local etcd cluster on master (k8s1) instead of using the kubernetes etcd cluster.
+For the IPAM, the calico-ipam is utilized. However, switching to host-local is also possible. 
+
+### IPv6 Cluster Using Calico
+    
+As with the kube-router IPv6 approach (discussed below), you will first need to provision a DNS64/NAT64 VM; followed by the k8s cluster:
+
+    DNS64NAT64=1 vagrant up
+    CNI=calico NWORKERS=2 IPV4=0 GOBGP=1 DNS64_IPV6=CC00::2 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 K8S=1 ./start.sh
+
+### IPv4 Cluster Using Calico
+
+    CNI=calico NWORKERS=2 IPV4=1 GOBGP=1 INSTALL_LOCAL_BUILD=1 K8S_VERSION=v1.13.0 K8S=1 ./start.sh
+
+### Calico Dual-Stack (work in progress)
+
+Calico dual-stack is possible eventhough k8s itself will only see one of the addresses. The current setup assumes a dual-stack host/VM and uses the calico-ipam to assign both ipv4 and ipv6 addresses to pods. To choose between IPv4 and IPv6, calico supports annotations on pods to pick which pool the address should come from.
+
+To try out dual stack, you will have to edit the func write_cni_calico_cfg in start.sh with the following:
+        "assign_ipv4": "true",
+        "assign_ipv6": "true"
+
+After bringing up the cluster, create a busybox pod and after doing so, you should see that both an IPv4 and an IPv6 address have been assigned:
+
+    kubectl run -i --tty bb1 --image=busybox -- sh
+    # ifconfig 
+    eth0  
+          inet addr:192.168.219.0  Bcast:0.0.0.0  Mask:255.255.255.255
+          inet6 addr: fd02::c0a8:2108:7fc:db00/128 Scope:Global
+
+## Kube-Router
 
 ### IPv6 Cluster Using Kube-Router
 

@@ -21,8 +21,6 @@ export 'VM_BASENAME'="k8s"
 export 'VAGRANT_DEFAULT_PROVIDER'=${VAGRANT_DEFAULT_PROVIDER:-"virtualbox"}
 # Sets the default cilium TUNNEL_MODE to "vxlan"
 
-
-
 # Master's IPv4 address. Workers' IPv4 address will have their IP incremented by
 # 1. The netmask used will be /24
 export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.8"}
@@ -909,7 +907,7 @@ function vboxnet_add_ipv4(){
 
 # vboxnet_addr_finder checks if any vboxnet interface has the IPv6 public CIDR
 function vboxnet_addr_finder(){
-    if [ -z "${IPV6_EXT}" ] && [ -z "${NFS}" ]; then
+    if [ -z "${IPV6_EXT}" ] && [ -z "${NFS}" ] && [ -z "${IPV4_EXT}" ]; then
         return
     fi
 
@@ -965,7 +963,7 @@ function vboxnet_addr_finder(){
 
     if [[ -z "${found}" ]]; then
         echo "WARN: VirtualBox interface with \"${IPV6_PUBLIC_CIDR}\" not found"
-        if [ ${YES_TO_ALL} -eq "0" ]; then
+        if [ "${YES_TO_ALL}" -eq "0" ]; then
             read -r -p "Create a new VBox hostonly network interface? [y/N] " response
         else
             response="Y"
@@ -985,7 +983,7 @@ function vboxnet_addr_finder(){
     elif [[ "${net_mask}" -ne 64 ]]; then
         echo "WARN: VirtualBox interface with \"${IPV6_PUBLIC_CIDR}\" found in ${vboxnetname}"
         echo "but set wrong network mask (${net_mask} instead of 64)"
-        if [ ${YES_TO_ALL} -eq "0" ]; then
+        if [ "${YES_TO_ALL}" -eq "0" ]; then
             read -r -p "Change network mask of '${vboxnetname}' to 64? [y/N] " response
         else
             response="Y"

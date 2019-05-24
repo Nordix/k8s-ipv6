@@ -67,7 +67,7 @@ Vagrant.configure(2) do |config|
                     virtualbox__intnet: "earvwan-test",
                     :libvirt__guest_ipv6 => "yes",
                     :libvirt__dhcp_enabled => false
-                if ENV["NFS"] || ENV["IPV6_EXT"] then
+                if ENV["NFS"] || ENV["IPV6_EXT"] || ENV["IPV4_EXT"] then
                     if ENV['FIRST_IP_SUFFIX_NFS'] then
                         $nfs_ipv4_master_addr = $node_nfs_base_ip + "#{ENV['FIRST_IP_SUFFIX_NFS']}"
                     end
@@ -112,6 +112,15 @@ Vagrant.configure(2) do |config|
                         path: cni_install,
                         args: ["true", "#{routerID}"]
                     
+                    if ENV["HELM"] then
+                        script = "./examples/helm/helm-install.sh"
+                        srv.vm.provision "helm-install", 
+                            type: "shell", 
+                            privileged: false, 
+                            run: "always", 
+                            path: script, 
+                            env: {"HELM_BASE_DIR" => "/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/examples/helm/"}
+                    end                    
                     if ENV["GOBGP"] then
                         script = "./client-vm/gobgp-setup.sh"
                         srv.vm.provision "gobgp-setup", type: "shell", privileged: true, run: "always", path: script

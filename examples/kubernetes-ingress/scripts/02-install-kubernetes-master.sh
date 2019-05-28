@@ -11,7 +11,7 @@ dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "${dir}/helpers.bash"
 
 cache_dir="${dir}/../../../hack/cache"
-local_build_dir="${dir}/../../../hack/local_builds/k8s/${k8s_version}"
+local_build_dir="${dir}/../../../hack/local_builds/k8s/${k8s_version}/_output/local/bin/linux/amd64"
 k8s_cache_dir="${cache_dir}/k8s/${k8s_version}"
 
 log "Installing kubernetes master components..."

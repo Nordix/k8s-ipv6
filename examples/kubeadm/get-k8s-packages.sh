@@ -16,8 +16,8 @@ apt-mark hold kubelet kubeadm kubectl
 if [ -n "${INSTALL}" ]; then
     if [ -n "${INSTALL_LOCAL_BUILD}" ]; then
 		log "Using local binaries"
-		local_kubeadm_build_dir="/home/vagrant/go/src/k8s.io/kubernetes/_output/dockerized/bin/linux/amd64"
-		local_docker_build_dir="/home/vagrant/go/src/k8s.io/kubernetes/_output/release-images/amd64"
+		local_kubeadm_build_dir="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/hack/local_builds/k8s/${k8s_version}/_output/local/bin/linux/amd64"
+		local_docker_build_dir="/home/vagrant/go/src/github.com/Nordix/k8s-ipv6/hack/local_builds/k8s/${k8s_version}/_output/release-images/amd64"
 
 		# copy local binaries and docker images 
 		cp $local_kubeadm_build_dir/kubeadm /usr/bin/kubeadm

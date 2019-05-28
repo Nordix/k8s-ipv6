@@ -16,10 +16,10 @@ if [ ! -f "/vagrant/config/kubadm-init-done" ]; then
 --pod-network-cidr="${k8s_cluster_cidr}" \
 --service-cidr="${k8s_service_cluster_ip_range}" \
 --node-name="${VM_BASENAME}1" \
---kubernetes-version "${k8s_version}" \
 --token="${KUBEADM_TOKEN}" | tee /vagrant/config/init.out
   touch "/vagrant/config/kubadm-init-done"
 fi
+# --kubernetes-version "${k8s_version}" \
 
 mkdir -p /home/vagrant/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config

@@ -271,7 +271,64 @@ EOF
 EOF
 }
 
-function write_ip_route_entry(){
+function write_ipv4_route_entry(){
+    podcidr="${1}"
+    node_ipv4="${2}"
+    filename="${3}"
+# sudo ip r a <podCIDR>  via <host's ip > 
+cat <<EOF >> "${filename}"
+ip r a ${podcidr}/24 via ${node_ipv4}
+EOF
+}
+
+# add_ipv4_podCIDR_routes_on_master adds routes for the podCIDR of all the workers
+# on the master node.
+function add_ipv4_podCIDR_routes_on_master(){
+    filename="${1}"         
+cat <<EOF >> "${filename}"
+# Manual routes for podCIDRs:  
+EOF
+    if [ -n "${NWORKERS}" ]; then
+        for i in `seq 0 $(( NWORKERS - 1 ))`; do
+            write_ipv4_route_entry "${ipv4_podCIDR_workers_addrs[i]}" "${ipv4_internal_workers_addrs[i]}" "${filename}"
+        done
+    fi
+
+}
+
+# add_ipv4_podCIDR_routes_on_workers adds routes for podCIDRs of each node. 
+# This is required for the cni bridge plugin for multi-node communication. 
+function add_ipv4_podCIDR_routes_on_workers(){
+    node_index="${1}"
+    filename="${2}"
+
+    local ipv4_array_l
+    split_ipv4 ipv4_array_l "${MASTER_IPV4}"
+    master_ip_suffix="${ipv4_array_l[3]}"
+    master_ipv6=${IPV6_INTERNAL_CIDR}$(printf '%02X' ${master_ip_suffix})
+
+    get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+
+cat <<EOF >> "${filename}"
+# Manual routes for podCIDRs:  
+EOF
+
+    # Add master podCIDR to worker
+    write_ipv4_route_entry "10.128.0.0" "${MASTER_IPV4}" "${filename}"
+
+    # Add entry of each worker, skipping self.
+    for j in `seq 0 $(( NWORKERS - 1 ))`; do
+        idx=$(expr $j + 2)
+        if [ "${idx}" -eq "${node_index}" ]; then
+            continue
+        fi
+        write_ipv4_route_entry "${ipv4_podCIDR_workers_addrs[j]}" "${ipv4_internal_workers_addrs[j]}" "${filename}"
+    done
+      
+}
+
+
+function write_ipv6_route_entry(){
     podcidr="${1}"
     node_ipv6="${2}"
     filename="${3}"
@@ -291,7 +348,7 @@ cat <<EOF >> "${filename}"
 EOF
     if [ -n "${NWORKERS}" ]; then
         for i in `seq 0 $(( NWORKERS - 1 ))`; do
-			write_ip_route_entry "${ipv6_podCIDR_workers_addrs[i]}" "${ipv6_internal_workers_addrs[i]}" "${filename}"
+			write_ipv6_route_entry "${ipv6_podCIDR_workers_addrs[i]}" "${ipv6_internal_workers_addrs[i]}" "${filename}"
         done
     fi
 
@@ -315,7 +372,7 @@ cat <<EOF >> "${filename}"
 EOF
 
 	# Add master podCIDR to worker
-	write_ip_route_entry "${master_cilium_ipv6}" "${master_ipv6}" "${filename}"
+	write_ipv6_route_entry "${master_cilium_ipv6}" "${master_ipv6}" "${filename}"
 
 	# Add entry of each worker, skipping self.
     for j in `seq 0 $(( NWORKERS - 1 ))`; do
@@ -323,7 +380,7 @@ EOF
         if [ "${idx}" -eq "${node_index}" ]; then
             continue
         fi
-		write_ip_route_entry "${ipv6_podCIDR_workers_addrs[j]}" "${ipv6_internal_workers_addrs[j]}" "${filename}"
+		write_ipv6_route_entry "${ipv6_podCIDR_workers_addrs[j]}" "${ipv6_internal_workers_addrs[j]}" "${filename}"
     done
       
 }
@@ -336,8 +393,7 @@ function write_ipv6_cni_cfg(){
         write_cni_kuberouter_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
     elif [[ "${CNI}" == "calico" ]]; then
         write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv6"
-    elif [ -z "${CNI}" ]; then
-        # if no cni is defined, we default to bridge
+    elif [ "${CNI}" == "bridge" ]; then
         write_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}"
     fi
 }
@@ -347,8 +403,7 @@ function write_ipv4_cni_cfg(){
         write_cni_kuberouter_cfg "${1}" "" "${3}" "${4}" "" "${6}"
     elif [[ "${CNI}" == "calico" ]]; then
         write_cni_calico_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "IPv4"
-    elif [ -z "${CNI}" ]; then
-        # if no cni is defined, we default to bridge
+    elif [ "${CNI}" == "bridge" ]; then
         write_cni_bridge_cfg "${1}" "" "${3}" "${4}" "" "${6}"
     fi
 }
@@ -582,8 +637,7 @@ function create_master(){
         if [ -n "${NWORKERS}" ]; then
             write_ipv6_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
         fi
-        if [ -z "${CNI}" ]; then
-            # we only add manual routes if no cni plugin is defined. 
+        if [ "${CNI}" == "bridge" ]; then           # for bridge we need manual routes
     	   add_ipv6_podCIDR_routes_on_master "${output_file}"
         fi
         if [ -n "${DNS64_IPV6}" ]; then
@@ -594,6 +648,10 @@ function create_master(){
         # IPv4
         write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
         write_ipv4_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
+        if [ "${CNI}" == "bridge" ]; then           # for bridge we need manual routes
+           echo "cni bridge: adding ipv4 manual routes on master"
+           add_ipv4_podCIDR_routes_on_master "${output_file}"
+        fi
         write_ipv4_cni_cfg 1 "" "10.128.0.0" 24 "" "${output_file}"
     fi
 }
@@ -622,7 +680,7 @@ function create_workers(){
                 worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
                 get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
                 get_cilium_node_gw_addr ipv6_gw_addr "${worker_cilium_ipv4}"
-                if [ -z "${CNI}" ]; then
+                if [ "${CNI}" == "bridge" ]; then
                     add_ipv6_podCIDR_routes_on_workers "${i}" "${output_file}"
                 fi        
                 if [ -n "${DNS64_IPV6}" ]; then
@@ -636,6 +694,10 @@ function create_workers(){
                 write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
                 # write_master_route "" "" "" "${i}" "${worker_ipv4}" "${output_file}"
                 write_ipv4_nodes_routes "${i}" "${MASTER_IPV4}" "${output_file}"
+                if [ "${CNI}" == "bridge" ]; then
+                    echo "cni bridge: adding ipv4 manual routes on worker ${i}"
+                    add_ipv4_podCIDR_routes_on_workers "${i}" "${output_file}"
+                fi        
                 write_ipv4_cni_cfg "${i}" "" "${worker_ipv4}" 24 "" "${output_file}"
             fi
         done
@@ -644,7 +706,7 @@ function create_workers(){
 
 function init_global_worker_addrs(){
 	local ipv4_array_l
-    split_ipv4 ipv4_array_l "${MASTER_IPV4}"
+    split_ipv4 ipv4_array_l "${MASTER_IPV4}" 
   
     base_workers_ip=$(printf "%d.%d.%d." "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}")
     if [ -n "${NWORKERS}" ]; then
@@ -652,13 +714,21 @@ function init_global_worker_addrs(){
             output_file="${dir}/node-${i}.sh"
             worker_ip_suffix=$(( ipv4_array_l[3] + i - 1 ))
             
+            # IPv4 and IPv6 of cluster interfaces on the hosts. (e.g "192.168.33.8")
+            worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
+            ipv4_internal_workers_addrs+=(${worker_cilium_ipv4})
             worker_ipv6=${IPV6_INTERNAL_CIDR}$(printf '%02X' ${worker_ip_suffix})
             ipv6_internal_workers_addrs+=(${worker_ipv6})
             
+            # IPV6 public interface 
+            # TODO: add for IPv4 as well
             worker_host_ipv6=${IPV6_PUBLIC_CIDR}$(printf '%02X' ${worker_ip_suffix})
             ipv6_public_workers_addrs+=(${worker_host_ipv6})
 
-            worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
+            # pod CIDRs for IPv4 and IPv6
+            let "id = $i - 1"
+            worker_podCIDR_ipv4=$(printf "10.128.%d.0" "${id}")
+            ipv4_podCIDR_workers_addrs+=(${worker_podCIDR_ipv4})            
             get_cilium_node_addr worker_cilium_ipv6 "${worker_cilium_ipv4}"
             ipv6_podCIDR_workers_addrs+=(${worker_cilium_ipv6})
         done
@@ -1018,6 +1088,10 @@ function set_reload_if_vm_exists(){
 if [[ "${VAGRANT_DEFAULT_PROVIDER}" -eq "virtualbox" ]]; then
      vboxnet_addr_finder
 fi
+
+ipv4_internal_workers_addrs=() 
+ipv4_podCIDR_workers_addrs=()
+ipv4_public_workers_addrs=()
 
 ipv6_internal_workers_addrs=() 
 ipv6_podCIDR_workers_addrs=()

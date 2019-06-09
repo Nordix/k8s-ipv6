@@ -234,7 +234,31 @@ sudo cp ./kube-proxy.kubeconfig /var/lib/kube-proxy/kube-proxy.kubeconfig
 # FIXME remove this once we know how to set up kube-proxy in RBAC properly
 sudo cp ./cilium.kubeconfig /var/lib/kube-proxy/kube-proxy.kubeconfig
 
+if [ -n "${DUAL_STACK}" ]; then
+    # TODO: add support for dual-stack to kube-proxy
+    # --cluster-cidr=${k8s_cluster_cidr} should take a list of CIDRs
 sudo tee /etc/systemd/system/kube-proxy.service <<EOF
+[Unit]
+Description=Kubernetes Kube-Proxy Server
+Documentation=https://kubernetes.io/docs/concepts/overview/components/#kube-proxy https://kubernetes.io/docs/reference/generated/kube-proxy/
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/kube-proxy \\
+  --bind-address=${kube_prox_bind_addr} \\
+  --cluster-cidr=10.128.0.0/18 \\
+  --kubeconfig=/var/lib/kube-proxy/kube-proxy.kubeconfig \\
+  --proxy-mode=iptables \\
+  --v=2
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+else
+  sudo tee /etc/systemd/system/kube-proxy.service <<EOF
 [Unit]
 Description=Kubernetes Kube-Proxy Server
 Documentation=https://kubernetes.io/docs/concepts/overview/components/#kube-proxy https://kubernetes.io/docs/reference/generated/kube-proxy/
@@ -254,6 +278,7 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
 
 sudo systemctl daemon-reload
 sudo systemctl enable kube-proxy
@@ -275,7 +300,6 @@ ExecStartPre=/bin/bash -c ' \\
            /bin/mount bpffs /sys/fs/bpf -t bpf; \\
         fi'
 ExecStart=/usr/bin/kubelet \\
-  --allow-privileged=true \\
   --client-ca-file=/var/lib/kubelet/ca-k8s.pem \\
   --cloud-provider= \\
   --cluster-dns=${cluster_dns_ip} \\
@@ -300,6 +324,7 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+#   --allow-privileged=true \\
 
 sudo systemctl daemon-reload
 sudo systemctl enable kubelet

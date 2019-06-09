@@ -11,17 +11,16 @@ function split_ipv4(){
     fi
 }
 
-# get_cilium_node_addr sets the cilium node address in ${1} for the IPv4 address
+# get_ipv6_node_cidr constructs the ipv6 node cidr in ${1} from the IPv4 address
 # in ${2}.
-function get_cilium_node_addr(){
+function get_ipv6_node_cidr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
     hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
     eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:0"
 }
 
-
-function get_cilium_node_gw_addr(){
+function get_ipv6_node_cidr_gw_addr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
     hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
@@ -47,21 +46,17 @@ EOF
 # 				Network Configs (written in node-1.sh, ...)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`#
 
-# write_ipv6_netcfg_header creates the file in ${3} and writes the internal network
+# write_ipv6_netcfg_header writes the internal network
 # configuration for the vm IP ${1}. Sets the master's hostname with IPv6 address
 # in ${2}.
 function write_ipv6_netcfg_header(){
     vm_ipv6="${1}"
     master_ipv6="${2}"
     filename="${3}"
-    cat <<EOF > "${filename}"
-#!/usr/bin/env bash
+    cat <<EOF >> "${filename}"
 
-if [ -n "${K8S}" ]; then
-    export K8S="1"
-fi
+			# IPv6 #
 
-# Use of IPv6 'documentation block' to provide example
 ip -6 a a ${vm_ipv6}/16 dev enp0s8
 
 echo '${master_ipv6} ${VM_BASENAME}1' >> /etc/hosts
@@ -73,19 +68,16 @@ ip -6 r a default via ${IPV6_PUBLIC_CIDR}1 dev enp0s9
 EOF
 }
 
-# write_ipv4_netcfg_header creates the file in ${3} and writes the internal network
+# write_ipv4_netcfg_header writes the internal network
 # configuration for the vm IP ${1}. Sets the master's hostname with IPv4 address
 # in ${2}.
 function write_ipv4_netcfg_header(){
     vm_ipv4="${1}"
     master_ipv4="${2}"
     filename="${3}"
-    cat <<EOF > "${filename}"
-#!/usr/bin/env bash
-
-if [ -n "${K8S}" ]; then
-    export K8S="1"
-fi
+    cat <<EOF >> "${filename}"
+            
+            # IPv4 #
 
 echo '${master_ipv4} ${VM_BASENAME}1' >> /etc/hosts
 sysctl -w net.ipv4.conf.all.forwarding=1
@@ -96,7 +88,7 @@ EOF
 
 function write_master_route(){
     master_ipv4_suffix="${1}"
-    master_cilium_ipv6="${2}"
+    master_ipv6_node_cidr="${2}"
     master_ipv6="${3}"
     node_index="${4}"
     worker_ip="${5}"
@@ -257,14 +249,14 @@ function add_ipv6_podCIDR_routes_on_workers(){
     master_ip_suffix="${ipv4_array_l[3]}"
     master_ipv6=${IPV6_INTERNAL_CIDR}$(printf '%02X' ${master_ip_suffix})
 
-    get_cilium_node_addr master_cilium_ipv6 "${MASTER_IPV4}"
+    get_ipv6_node_cidr master_ipv6_node_cidr "${MASTER_IPV4}"
 
 cat <<EOF >> "${filename}"
 # Manual routes for podCIDRs:  
 EOF
 
 	# Add master podCIDR to worker
-	write_ipv6_route_entry "${master_cilium_ipv6}" "${master_ipv6}" "${filename}"
+	write_ipv6_route_entry "${master_ipv6_node_cidr}" "${master_ipv6}" "${filename}"
 
 	# Add entry of each worker, skipping self.
     for j in `seq 0 $(( NWORKERS - 1 ))`; do
@@ -302,7 +294,6 @@ function set_vagrant_env(){
 
     temp=$(printf " %s" "${ipv6_public_workers_addrs[@]}")
     export 'IPV6_PUBLIC_WORKERS_ADDRS'="${temp:1}"
-    # echo "IPV6_PUBLIC_WORKERS_ADDRS: ${IPV6_PUBLIC_WORKERS_ADDRS}"
     if [[ "${IPV4}" -ne "1" ]]; then
         export 'IPV6_EXT'=1
     fi

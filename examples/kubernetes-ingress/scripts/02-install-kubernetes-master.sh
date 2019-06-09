@@ -72,7 +72,6 @@ Documentation=https://kubernetes.io/docs/home
 ExecStart=/usr/bin/kube-apiserver \\
   --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,NodeRestriction,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds \\
   --advertise-address=${controllers_ips[1]} \\
-  --allow-privileged=true \\
   --authorization-mode=Node,RBAC \\
   --bind-address=0.0.0.0 \\
   --cert-dir=/var/run/kubernetes \\
@@ -99,6 +98,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+
+#   --allow-privileged=true \\
 
 sudo systemctl daemon-reload
 sudo systemctl enable kube-apiserver

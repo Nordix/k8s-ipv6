@@ -7,19 +7,19 @@ dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 source "${dir}/helpers.sh"
 source "${dir}/get-k8s-packages.sh"
 
-mkdir -p /vagrant/config/
+mkdir -p /home/vagrant/config/
 
 if [[ -n "${IPV6_EXT}" ]]; then
-	if [ ! -f "/vagrant/config/kubadm-join-${self_name}-done" ]; then
+	if [ ! -f "/home/vagrant/config/kubadm-join-${self_name}-done" ]; then
 		echo "Running kubeadm join (IPv6 addressing)"
 		sudo kubeadm join "[${master_ip}]":6443 --token "${KUBEADM_TOKEN}" --discovery-token-unsafe-skip-ca-verification
-		touch "/vagrant/config/kubadm-join-${self_name}-done"
+		touch "/home/vagrant/config/kubadm-join-${self_name}-done"
 	fi
 else
-	if [ ! -f "/vagrant/config/kubadm-join-${self_name}-done" ]; then
+	if [ ! -f "/home/vagrant/config/kubadm-join-${self_name}-done" ]; then
 		echo "Running kubeadm join (IPv4 addressing)"
 		sudo kubeadm join "${master_ip}":6443 --token "${KUBEADM_TOKEN}" --discovery-token-unsafe-skip-ca-verification
-		touch "/vagrant/config/kubadm-join-${self_name}-done"
+		touch "/home/vagrant/config/kubadm-join-${self_name}-done"
 	fi
 fi
 

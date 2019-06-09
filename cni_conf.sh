@@ -20,6 +20,12 @@ function write_ipv4_cni_cfg(){
     fi
 }
 
+function write_dual_stack_cni_cfg(){
+	if [ "${CNI}" == "bridge" ]; then
+        write_dual_stack_cni_bridge_cfg "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${9}"
+    fi	
+}
+
 function write_cni_bridge_cfg(){
     node_index="${1}"
     master_ipv4_suffix="${2}"
@@ -45,10 +51,50 @@ cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
         		{
         			"subnet": "${ip_addr}/${mask_size}"
         		}
+        	]
+        ]   
+    }
+}
+EOF
+
+cat <<EOF >> "${filename}"
+
+EOF
+}
+
+
+function write_dual_stack_cni_bridge_cfg(){
+    node_index="${1}"
+    master_ipv4_suffix="${2}"
+    ipv4_addr="${3}"
+    ipv4_mask_size="${4}"
+    ipv4_gw_addr="${5}"
+    ipv6_addr="${6}"
+    ipv6_mask_size="${7}"
+    ipv6_gw_addr="${8}"
+    filename="${9}"
+
+cat <<EOF >> "$filename"
+
+cat <<EOF >> "/etc/cni/net.d/10-mynet.conf"
+{
+    "cniVersion": "0.3.0",
+    "name": "my-bridge",
+    "type": "bridge",
+    "bridge": "cni0",
+    "isDefaultGateway": true,
+    "ipMasq": true,
+    "ipam": {
+        "type": "host-local",
+        "ranges": [
+        	[
+        		{
+        			"subnet": "${ipv4_addr}/${ipv4_mask_size}"
+        		}
         	],
         	[
         		{
-        			"subnet": "FD02::0:0:0/96"
+        			"subnet": "${ipv6_addr}/${ipv6_mask_size}"
         		}
         	]
         ]   
@@ -173,24 +219,6 @@ EOF
 function write_cni_install_file() {
     k8s_dir="${1}"
     filename="${2}"
-    if [[ -n "${IPV6_EXT}" ]]; then
-        # The k8s cluster cidr will be /80
-        # it can be any value as long it's lower than /96
-        # k8s will assign each node a cidr for example:
-        #   master  : FD02::C0A8:2108:0:0/96
-        #   worker 1: FD02::C0A8:2109:0:0/96
-        # The kube-controller-manager is responsible for incrementing 8, 9, A, ...
-        k8s_cluster_cidr="FD02::C0A8:2108:0:0/93"
-        k8s_node_cidr_mask_size="96"
-        k8s_service_cluster_ip_range="FD03::/112"
-        k8s_cluster_api_server_ip="FD03::1"
-        k8s_cluster_dns_ip="FD03::A"
-    fi
-    k8s_cluster_cidr=${k8s_cluster_cidr:-"10.128.0.0/18"}
-    k8s_node_cidr_mask_size=${k8s_node_cidr_mask_size:-"24"}
-    k8s_service_cluster_ip_range=${k8s_service_cluster_ip_range:-"172.20.0.0/24"}
-    k8s_cluster_api_server_ip=${k8s_cluster_api_server_ip:-"172.20.0.1"}
-    k8s_cluster_dns_ip=${k8s_cluster_dns_ip:-"172.20.0.10"}
 
     cat <<EOF > "${filename}"
 #!/usr/bin/env bash
@@ -203,11 +231,11 @@ export VM_BASENAME="k8s"
 export MASTER_IPV4="${MASTER_IPV4}"
 export MASTER_IPV6="${MASTER_IPV6}"
 export MASTER_IPV6_PUBLIC="${MASTER_IPV6_PUBLIC}"
-export K8S_CLUSTER_CIDR="${k8s_cluster_cidr}"
-export K8S_NODE_CIDR_MASK_SIZE="${k8s_node_cidr_mask_size}"
-export K8S_SERVICE_CLUSTER_IP_RANGE="${k8s_service_cluster_ip_range}"
-export K8S_CLUSTER_API_SERVER_IP="${k8s_cluster_api_server_ip}"
-export K8S_CLUSTER_DNS_IP="${k8s_cluster_dns_ip}"
+export K8S_CLUSTER_CIDR="${K8S_CLUSTER_CIDR}"
+export K8S_NODE_CIDR_MASK_SIZE="${K8S_NODE_CIDR_MASK_SIZE}"
+export K8S_SERVICE_CLUSTER_IP_RANGE="${K8S_SERVICE_CLUSTER_IP_RANGE}"
+export K8S_CLUSTER_API_SERVER_IP="${K8S_CLUSTER_API_SERVER_IP}"
+export K8S_CLUSTER_DNS_IP="${K8S_CLUSTER_DNS_IP}"
 export RUNTIME="${RUNTIME}"
 export CNI_INSTALL_TYPE="${CNI_INSTALL_TYPE}"
 export CNI_ARGS="${CNI_ARGS}"

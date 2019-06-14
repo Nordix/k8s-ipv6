@@ -3,7 +3,6 @@
 set -e
 
 # https://github.com/kubernetes/kubeadm/blob/master/testing-pre-releases.md#creating-the-kubernetes-cluster-with-kubeadm
-
 apt-get update && apt-get install -y apt-transport-https curl
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
@@ -34,6 +33,7 @@ if [ -n "${INSTALL}" ]; then
 		download_to "${cache_dir}/cni" "cni-plugins-amd64-v0.7.1.tgz" \
 		    "https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz"
 		cp "${cache_dir}/cni/cni-plugins-amd64-v0.7.1.tgz" .
+		sudo mkdir -p /opt/cni/bin
 		sudo tar -xvf cni-plugins-amd64-v0.7.1.tgz -C /opt/cni/bin
 
 	else

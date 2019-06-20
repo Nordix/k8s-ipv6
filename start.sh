@@ -54,21 +54,36 @@ export 'IPV6_INTERNAL_CIDR'=${IPV4+"FD01::"}
 export 'MASTER_IPV6'="${IPV6_INTERNAL_CIDR}$(printf '%02X' ${ipv4_array[3]})"
 
 # Cilium IPv6 node CIDR. Each node will be setup with IPv6 network of
-# $CILIUM_IPV6_NODE_CIDR + 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will
+# $CILIUM_IPV6_NODE_CIDR + $MASTER_IPV4-Last-Octet. For IPv4 "192.168.33.8" we will
 # have for example:
+#   master  : FD02::8:0:0/96   worker 1: FD02::9:0:0/96
+# Or another example:
+#   master  : FD02:8::0:0/20   worker 1: FD02:9::0:0/20
+# This will be the PodCIDR. kubectl get nodes -o json | grep -i -C 10 podCIDR 
+# export 'EMBED_IPV4'=1
+# NOTE: I'm not sure embedding the ipv4 address (EMBED_IPV4) in the podCIDR is all that useful, but I'll leave it for now.
 #   master  : FD02::C0A8:2108:0:0/96
 #   worker 1: FD02::C0A8:2109:0:0/96
-# ~EARVWAN~ This is the PodCIDR. Try: kubectl get nodes -o json | grep -i -C 10 podCIDR 
-# NOTE: I'm not sure embedding the ipv4 address in the podCIDR is all that useful, but I'll leave it for now.
-# It may be better in the future to just do #   master  : FD02::0:0:0/96   worker 1: FD02::1:0:0/96
-export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
+if [ -n "${EMBED_IPV4}" ]; then
+    export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02::"}
+    export 'CILIUM_IPV6_NODE_PREFIX_SIZE'=${CILIUM_IPV6_NODE_PREFIX_SIZE:-"93"}
+    export 'CILIUM_IPV6_NODE_MASK_SIZE'=${CILIUM_IPV6_NODE_MASK_SIZE:-"96"}
+else
+    export 'CILIUM_IPV6_NODE_CIDR'=${CILIUM_IPV6_NODE_CIDR:-"FD02:"}
+    export 'CILIUM_IPV6_NODE_PREFIX_SIZE'=${CILIUM_IPV6_NODE_PREFIX_SIZE:-"16"}
+    export 'CILIUM_IPV6_NODE_MASK_SIZE'=${CILIUM_IPV6_NODE_MASK_SIZE:-"24"}
+fi
+
 
 # kubeadm is used by default
 # alternative is to manually launch each component (cilium approach)
 export 'ENABLE_KUBEKDM'="${ENABLE_KUBEKDM:-"true"}"
 
+get_ipv6_node_cidr ipv6_node_cidr "${MASTER_IPV4}"
+echo "Using IPv6 Node CIDR: ${ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"
+
 if [ -n "${DUAL_STACK}" ]; then
-    K8S_CLUSTER_CIDR=${K8S_CLUSTER_CIDR:-"10.128.0.0/18,FD02::C0A8:2108:0:0/93"}
+    K8S_CLUSTER_CIDR=${K8S_CLUSTER_CIDR:-"10.128.0.0/18,${ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"}
     K8S_NODE_CIDR_MASK_SIZE=${K8S_NODE_CIDR_MASK_SIZE:-"24"} # not needed for kubeadm 
     K8S_SERVICE_CLUSTER_IP_RANGE=${K8S_SERVICE_CLUSTER_IP_RANGE:-"172.20.0.0/24"}
     K8S_CLUSTER_API_SERVER_IP=${K8S_CLUSTER_API_SERVER_IP:-"172.20.0.1"}
@@ -81,8 +96,8 @@ else # default is single-stack
         #   master  : FD02::C0A8:2108:0:0/96
         #   worker 1: FD02::C0A8:2109:0:0/96
         # The kube-controller-manager is responsible for incrementing 8, 9, A, ...
-        K8S_CLUSTER_CIDR+="FD02::C0A8:2108:0:0/93"
-        K8S_NODE_CIDR_MASK_SIZE="96"
+        K8S_CLUSTER_CIDR+="{$ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"
+        K8S_NODE_CIDR_MASK_SIZE="${CILIUM_IPV6_NODE_MASK_SIZE}"
         K8S_SERVICE_CLUSTER_IP_RANGE="FD03::/112"
         K8S_CLUSTER_API_SERVER_IP="FD03::1"
         K8S_CLUSTER_DNS_IP="FD03::A"
@@ -169,7 +184,7 @@ EOF
             fi
 
             # create the dual-stack cni
-            write_dual_stack_cni_cfg 1 "${ipv4_array_l[3]}" "10.128.0.0" "24" "" "${master_ipv6_node_cidr}" "96" "${ipv6_node_cidr_gw_addr}" "${output_file}"
+            write_dual_stack_cni_cfg 1 "${ipv4_array_l[3]}" "10.128.0.0" "24" "" "${master_ipv6_node_cidr}" "${CILIUM_IPV6_NODE_MASK_SIZE}" "${ipv6_node_cidr_gw_addr}" "${output_file}"
     else # default is single-stack 
         if [ "${IPV4}" -ne "1" ]; then
             write_ipv6_netcfg_header "${MASTER_IPV6}" "${MASTER_IPV6}" "${output_file}"
@@ -182,7 +197,7 @@ EOF
             if [ -n "${DNS64_IPV6}" ]; then
                 write_dns64_resolv_conf "${DNS64_IPV6}" "${output_file}"
             fi
-            write_ipv6_cni_cfg 1 "${ipv4_array_l[3]}" "${master_ipv6_node_cidr}" "96" "${ipv6_node_cidr_gw_addr}" "${output_file}"
+            write_ipv6_cni_cfg 1 "${ipv4_array_l[3]}" "${master_ipv6_node_cidr}" "${CILIUM_IPV6_NODE_MASK_SIZE}" "${ipv6_node_cidr_gw_addr}" "${output_file}"
         else
             write_ipv4_netcfg_header "" "${MASTER_IPV4}" "${output_file}"
             write_ipv4_nodes_routes 1 "${MASTER_IPV4}" "${output_file}"
@@ -239,7 +254,7 @@ EOF
                 worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
                 get_ipv6_node_cidr worker_cilium_ipv6 "${worker_cilium_ipv4}"
                 get_ipv6_node_cidr_gw_addr ipv6_node_cidr_gw_addr "${worker_cilium_ipv4}"
-                write_dual_stack_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_ipv4}" "24" "" "${worker_cilium_ipv6}" "96" "${ipv6_node_cidr_gw_addr}" "${output_file}"
+                write_dual_stack_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_ipv4}" "24" "" "${worker_cilium_ipv6}" "${CILIUM_IPV6_NODE_MASK_SIZE}" "${ipv6_node_cidr_gw_addr}" "${output_file}"
 
             else # default is single-stack
                 if [[ "${IPV4}" -ne "1" ]]; then
@@ -257,7 +272,7 @@ EOF
                     worker_cilium_ipv4="${base_workers_ip}${worker_ip_suffix}"
                     get_ipv6_node_cidr worker_cilium_ipv6 "${worker_cilium_ipv4}"
                     get_ipv6_node_cidr_gw_addr ipv6_node_cidr_gw_addr "${worker_cilium_ipv4}"
-        			write_ipv6_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" 96 "${ipv6_node_cidr_gw_addr}" "${output_file}"
+        			write_ipv6_cni_cfg "${i}" "${worker_ip_suffix}" "${worker_cilium_ipv6}" "${CILIUM_IPV6_NODE_MASK_SIZE}" "${ipv6_node_cidr_gw_addr}" "${output_file}"
                 else
                     # IPv4
                     let "id = $i - 1"
@@ -364,7 +379,8 @@ fi
 export ETCD_CLEAN="${ETCD_CLEAN}"
 # Feature gate for dual-stack
 if [ -n "${DUAL_STACK}" ]; then
-    export FEATURE_GATES_STRING="IPv6DualStack=true"
+    export FEATURE_GATES_DS_KEY="IPv6DualStack"
+    export FEATURE_GATES_DS_VAL="true"
 fi
 EOF
 

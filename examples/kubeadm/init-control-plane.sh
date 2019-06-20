@@ -33,7 +33,7 @@ EOF
 if [ -n "${DUAL_STACK}" ]; then
 cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
   kubeletExtraArgs:
-    feature-gates: ${FEATURE_GATES_STRING}
+    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
 EOF
 fi
 cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
@@ -59,13 +59,18 @@ apiServer:
 EOF
 if [ -n "${DUAL_STACK}" ]; then
 	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-    feature-gates: ${FEATURE_GATES_STRING}  
+    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
 controllerManager:
   extraArgs:
-    feature-gates: ${FEATURE_GATES_STRING}
+    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
 scheduler:
   extraArgs:
-    feature-gates: ${FEATURE_GATES_STRING}
+    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
+---
+kind: KubeProxyConfiguration
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+featureGates:
+  ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
 EOF
 else
 cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
@@ -73,6 +78,10 @@ controllerManager: {}
 scheduler: {}
 EOF
 fi
+
+# featureGates:
+#   IPv6DualStack: true
+
 
 if [ ! -f "/home/home/vagrant/config/kubadm-init-done" ]; then
   echo "Initiate kubeadm using token $KUBEADM_TOKEN"
@@ -91,7 +100,7 @@ fi
 # --token="${KUBEADM_TOKEN}" | tee /home/vagrant/config/init.out
 #   touch "/home/vagrant/config/kubadm-init-done"
 # fi
-# --feature-gates="${FEATURE_GATES_STRING}" \
+# --feature-gates="${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}" \
 
 mkdir -p /home/vagrant/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config

@@ -16,15 +16,25 @@ function split_ipv4(){
 function get_ipv6_node_cidr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
-    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
-    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:0"
+	if [ -n "${EMBED_IPV4}" ]; then
+	    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
+	    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:0"
+	else
+	    hexIPv4=$(printf "%02X::" "${ipv4_array_l[3]}")
+		eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}0:0"
+	fi
 }
 
 function get_ipv6_node_cidr_gw_addr(){
 	local ipv4_array_l
     split_ipv4 ipv4_array_l "${2}"
-    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
-    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
+	if [ -n "${EMBED_IPV4}" ]; then
+	    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
+	    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
+	else
+	    hexIPv4=$(printf "%02X::" "${ipv4_array_l[3]}")
+		eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
+	fi
 }
 
 
@@ -218,7 +228,7 @@ function write_ipv6_route_entry(){
     filename="${3}"
 # sudo ip -6 r a fd02::c0a8:210c:0:0/96  via fd01::c 
 cat <<EOF >> "${filename}"
-ip -6 r a ${podcidr}/96 via ${node_ipv6}
+ip -6 r a ${podcidr}/${CILIUM_IPV6_NODE_MASK_SIZE} via ${node_ipv6}
 EOF
 }
 

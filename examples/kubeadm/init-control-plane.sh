@@ -69,6 +69,7 @@ scheduler:
 ---
 kind: KubeProxyConfiguration
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
+mode: userspace
 featureGates:
   ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
 EOF

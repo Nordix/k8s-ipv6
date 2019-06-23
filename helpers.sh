@@ -20,7 +20,7 @@ function get_ipv6_node_cidr(){
 	    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
 	    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:0"
 	else
-	    hexIPv4=$(printf "%02X::" "${ipv4_array_l[3]}")
+	    hexIPv4=$(printf "%02X00::" "${ipv4_array_l[3]}")
 		eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}0:0"
 	fi
 }
@@ -32,7 +32,7 @@ function get_ipv6_node_cidr_gw_addr(){
 	    hexIPv4=$(printf "%02X%02X:%02X%02X" "${ipv4_array_l[0]}" "${ipv4_array_l[1]}" "${ipv4_array_l[2]}" "${ipv4_array_l[3]}")
 	    eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
 	else
-	    hexIPv4=$(printf "%02X::" "${ipv4_array_l[3]}")
+	    hexIPv4=$(printf "%02X00::" "${ipv4_array_l[3]}")
 		eval "${1}=${CILIUM_IPV6_NODE_CIDR}${hexIPv4}:0:1"
 	fi
 }

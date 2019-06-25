@@ -32,7 +32,9 @@ export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.8"}
 export 'MASTER_IPV4_NFS'=${MASTER_IPV4_NFS:-"192.168.34.8"}
 
 export 'IPV4'=${IPV4:-1}
-
+if [[ "${IPV4}" -ne "1" ]]; then
+    export 'IPV6_EXT'=1
+fi
 # Exposed IPv6 node CIDR, only set if IPV4 is disabled. Each node will be setup
 # with a IPv6 network available from the host with $IPV6_PUBLIC_CIDR +
 # 6to4($MASTER_IPV4). For IPv4 "192.168.33.8" we will have for example:
@@ -74,10 +76,10 @@ else
     export 'CILIUM_IPV6_NODE_MASK_SIZE'=${CILIUM_IPV6_NODE_MASK_SIZE:-"24"}
 fi
 
-
 # kubeadm is used by default
 # alternative is to manually launch each component (cilium approach)
 export 'ENABLE_KUBEKDM'="${ENABLE_KUBEKDM:-"true"}"
+export 'KUBEPROXY_MODE'="${KUBEPROXY_MODE:-"userspace"}"
 
 get_ipv6_node_cidr ipv6_node_cidr "${MASTER_IPV4}"
 echo "Using IPv6 Node CIDR: ${ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"
@@ -96,7 +98,7 @@ else # default is single-stack
         #   master  : FD02::C0A8:2108:0:0/96
         #   worker 1: FD02::C0A8:2109:0:0/96
         # The kube-controller-manager is responsible for incrementing 8, 9, A, ...
-        K8S_CLUSTER_CIDR+="{$ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"
+        K8S_CLUSTER_CIDR+="${ipv6_node_cidr}/${CILIUM_IPV6_NODE_PREFIX_SIZE}"
         K8S_NODE_CIDR_MASK_SIZE="${CILIUM_IPV6_NODE_MASK_SIZE}"
         K8S_SERVICE_CLUSTER_IP_RANGE="FD03::/112"
         K8S_CLUSTER_API_SERVER_IP="FD03::1"
@@ -368,6 +370,8 @@ export K8S_SERVICE_CLUSTER_IP_RANGE="${K8S_SERVICE_CLUSTER_IP_RANGE}"
 export K8S_CLUSTER_API_SERVER_IP="${K8S_CLUSTER_API_SERVER_IP}"
 export K8S_CLUSTER_DNS_IP="${K8S_CLUSTER_DNS_IP}"
 export RUNTIME="${RUNTIME}"
+export KUBEPROXY_MODE="${KUBEPROXY_MODE}"
+
 # Only do installation if RELOAD is not set
 if [ -z "${RELOAD}" ]; then
     export INSTALL="1"
@@ -434,6 +438,8 @@ export K8S_CLUSTER_DNS_IP="${K8S_CLUSTER_DNS_IP}"
 export RUNTIME="${RUNTIME}"
 export K8STAG="${VM_BASENAME}"
 export NWORKERS="${NWORKERS}"
+export KUBEPROXY_MODE="${KUBEPROXY_MODE}"
+
 # Only do installation if RELOAD is not set
 if [ -z "${RELOAD}" ]; then
     export INSTALL="1"

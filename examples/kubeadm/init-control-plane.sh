@@ -21,7 +21,7 @@ bootstrapTokens:
   - signing
   - authentication
 localAPIEndpoint:
-  advertiseAddress: ${controllers_ips[1]}
+  advertiseAddress: "${controllers_ips[1]}"
   bindPort: 6443
 nodeRegistration:
   criSocket: /var/run/dockershim.sock
@@ -36,6 +36,7 @@ cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
     feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
 EOF
 fi
+
 cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
 ---
 kind: ClusterConfiguration
@@ -50,13 +51,14 @@ etcd:
 kubernetesVersion: ${k8s_version}
 networking:
   dnsDomain: cluster.local
-  podSubnet: ${k8s_cluster_cidr}
-  serviceSubnet: ${k8s_service_cluster_ip_range}
+  podSubnet: "${k8s_cluster_cidr}"
+  serviceSubnet: "${k8s_service_cluster_ip_range}"
 apiServer:
   timeoutForControlPlane: 4m0s
   extraArgs:
     authorization-mode: Node,RBAC
 EOF
+
 if [ -n "${DUAL_STACK}" ]; then
 	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
     feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
@@ -66,20 +68,26 @@ controllerManager:
 scheduler:
   extraArgs:
     feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
----
-kind: KubeProxyConfiguration
-apiVersion: kubeproxy.config.k8s.io/v1alpha1
-mode: userspace
-featureGates:
-  ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
 EOF
 else
-cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
+	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
 controllerManager: {}
 scheduler: {}
 EOF
 fi
 
+cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
+---
+kind: KubeProxyConfiguration
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+mode: ${KUBEPROXY_MODE}
+EOF
+if [ -n "${DUAL_STACK}" ]; then
+	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
+featureGates:
+  ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
+EOF
+fi
 # featureGates:
 #   IPv6DualStack: true
 

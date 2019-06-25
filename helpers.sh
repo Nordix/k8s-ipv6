@@ -304,9 +304,6 @@ function set_vagrant_env(){
 
     temp=$(printf " %s" "${ipv6_public_workers_addrs[@]}")
     export 'IPV6_PUBLIC_WORKERS_ADDRS'="${temp:1}"
-    if [[ "${IPV4}" -ne "1" ]]; then
-        export 'IPV6_EXT'=1
-    fi
 }
 
 

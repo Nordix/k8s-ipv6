@@ -5,6 +5,11 @@ alias kgsa="kubectl get svc --all-namespaces -o wide"
 alias kgep="kubectl get endpoints --all-namespaces -o wide"
 alias kgds="kubectl get daemonsets --all-namespaces -o wide"
 alias kgdp="kubectl get deployments --all-namespaces -o wide"
+alias kdn="kc describe nodes"
+
+
+alias klog="kc logs "
+alias jkl="journalctl -u kubelet.service"
 
 function kd () {
 	kubectl delete -f "\$@" --grace-period=0 --force

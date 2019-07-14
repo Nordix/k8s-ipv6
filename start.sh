@@ -32,8 +32,10 @@ export 'MASTER_IPV4'=${MASTER_IPV4:-"192.168.33.8"}
 export 'MASTER_IPV4_NFS'=${MASTER_IPV4_NFS:-"192.168.34.8"}
 
 export 'IPV4'=${IPV4:-1}
-if [[ "${IPV4}" -ne "1" ]]; then
-    export 'IPV6_EXT'=1
+if [[ "${DUAL_STACK}" -ne "1" ]]; then
+    if [[ "${IPV4}" -ne "1" ]]; then
+        export 'IPV6_EXT'=1
+    fi
 fi
 # Exposed IPv6 node CIDR, only set if IPV4 is disabled. Each node will be setup
 # with a IPv6 network available from the host with $IPV6_PUBLIC_CIDR +

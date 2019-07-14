@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
-export LOCAL_K8S_REPO=${LOCAL_K8S_REPO:-"/home/awander/go/src/github.com/khenidak/kubernetes"}
+export LOCAL_K8S_REPO=${LOCAL_K8S_REPO:-"/home/awander/go/src/k8s.io/kubernetes"}
 
 # Build everything
 if [ -z "${SKIP_BUILD}" ]; then
 	cwd=$(pwd)
 	cd $LOCAL_K8S_REPO
 	make kubeadm kubectl kubelet
+	export KUBE_BUILD_CONFORMANCE=n
 	make quick-release-images
 	cd $cwd
 fi

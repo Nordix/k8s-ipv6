@@ -53,7 +53,7 @@ Vagrant.configure(2) do |config|
                 mount_type = ""
             end
             config.vm.synced_folder '.', '/home/vagrant/go/src/github.com/Nordix/k8s-ipv6', type: mount_type        
-            # config.vm.synced_folder '../../../k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type
+            config.vm.synced_folder '../../../k8s.io', '/home/vagrant/go/src/k8s.io', type: mount_type
             config.vm.synced_folder '../../cloudnativelabs/kube-router', '/home/vagrant/go/src/github.com/cloudnativelabs/kube-router', type: mount_type
             config.vm.synced_folder '../../projectcalico/cni-plugin', '/home/vagrant/go/src/github.com/projectcalico/cni-plugin', type: mount_type
             config.vm.synced_folder '../../projectcalico/node', '/home/vagrant/go/src/github.com/projectcalico/node', type: mount_type    
@@ -142,7 +142,7 @@ Vagrant.configure(2) do |config|
                     virtualbox__intnet: "earvwan-test",
                     :libvirt__guest_ipv6 => 'yes',
                     :libvirt__dhcp_enabled => false
-                if ENV["NFS"] || ENV["IPV6_EXT"] then
+                if ENV["NFS"] || ENV["IPV6_EXT"] || ENV["IPV4_EXT"] then
                     nfs_ipv4_addr = $workers_ipv4_addrs_nfs[n]
                     node_ip = "#{nfs_ipv4_addr}"
                     ipv6_addr = $workers_ipv6_addrs[n]

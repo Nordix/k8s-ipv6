@@ -29,10 +29,11 @@ nodeRegistration:
   taints:
   - effect: NoSchedule
     key: node-role.kubernetes.io/master
+  kubeletExtraArgs:
+    cgroup-driver: "${CGROUP_DRIVER}"
 EOF
 if [ -n "${DUAL_STACK}" ]; then
 cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-  kubeletExtraArgs:
     feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
 EOF
 fi
@@ -68,6 +69,8 @@ controllerManager:
 scheduler:
   extraArgs:
     feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
+featureGates:
+  ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
 EOF
 else
 	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
@@ -88,8 +91,6 @@ featureGates:
   ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
 EOF
 fi
-# featureGates:
-#   IPv6DualStack: true
 
 
 if [ ! -f "/home/home/vagrant/config/kubadm-init-done" ]; then

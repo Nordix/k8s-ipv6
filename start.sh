@@ -12,6 +12,9 @@ export 'EARVWAN_TEMP'="${dir}"
 # export 'K8S'="1"
 # export 'NWORKERS'=1
 
+# alternative would be: systemd
+export 'CGROUP_DRIVER'=${CGROUP_DRIVER:-cgroupfs}
+
 export 'VM_MEMORY'=${MEMORY:-3072}
 # Number of CPUs
 export 'VM_CPUS'=${CPUS:-2}
@@ -373,6 +376,7 @@ export K8S_CLUSTER_API_SERVER_IP="${K8S_CLUSTER_API_SERVER_IP}"
 export K8S_CLUSTER_DNS_IP="${K8S_CLUSTER_DNS_IP}"
 export RUNTIME="${RUNTIME}"
 export KUBEPROXY_MODE="${KUBEPROXY_MODE}"
+export CGROUP_DRIVER="${CGROUP_DRIVER}"
 
 # Only do installation if RELOAD is not set
 if [ -z "${RELOAD}" ]; then

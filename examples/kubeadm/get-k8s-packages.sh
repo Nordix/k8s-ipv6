@@ -26,6 +26,10 @@ if [ -n "${INSTALL}" ]; then
 		array=(kube-apiserver kube-controller-manager kube-scheduler kube-proxy)
 		for i in "${array[@]}"; do 
 		  sudo docker load -i $local_docker_build_dir/$i.tar
+		  # We need to remove the "-amd64" which is appened to local build images. 
+		  # docker doesn't like "+" and replaces it with replace it with "_"
+		  sudo docker tag "k8s.gcr.io/${i}-amd64:${k8s_version//[+]/_}" "k8s.gcr.io/${i}:${k8s_version//[+]/_}"
+		  sudo docker rmi "k8s.gcr.io/${i}-amd64:${k8s_version//[+]/_}"
 		done
 		
 		# the base cni binaries are installed as part of the kubelet install. however, these are very old and need to be updated

@@ -16,6 +16,9 @@ if test -f "$BAZEL_INSTALL_SCRIPT"; then
 	sudo $BAZEL_INSTALL_SCRIPT
 fi
 
+if [[ -f "/var/lib/apt/lists/lock" ]]; then
+    sudo rm /var/lib/apt/lists/lock
+fi
 sudo apt-get update
 sudo apt-get -y install ipset ipvsadm sshpass
 

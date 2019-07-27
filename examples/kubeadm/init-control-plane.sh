@@ -31,14 +31,6 @@ nodeRegistration:
     key: node-role.kubernetes.io/master
   kubeletExtraArgs:
     cgroup-driver: "${CGROUP_DRIVER}"
-EOF
-if [ -n "${DUAL_STACK}" ]; then
-cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
-EOF
-fi
-
-cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
 ---
 kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta2
@@ -59,23 +51,10 @@ apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
 EOF
-
 if [ -n "${DUAL_STACK}" ]; then
-	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
-controllerManager:
-  extraArgs:
-    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
-scheduler:
-  extraArgs:
-    feature-gates: ${FEATURE_GATES_DS_KEY}=${FEATURE_GATES_DS_VAL}
+cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
 featureGates:
   ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
-EOF
-else
-	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-controllerManager: {}
-scheduler: {}
 EOF
 fi
 
@@ -85,12 +64,6 @@ kind: KubeProxyConfiguration
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 mode: ${KUBEPROXY_MODE}
 EOF
-if [ -n "${DUAL_STACK}" ]; then
-	cat <<EOF >> /home/vagrant/config/kubeadm-config.yaml
-featureGates:
-  ${FEATURE_GATES_DS_KEY}: ${FEATURE_GATES_DS_VAL}
-EOF
-fi
 
 
 if [ ! -f "/home/home/vagrant/config/kubadm-init-done" ]; then
